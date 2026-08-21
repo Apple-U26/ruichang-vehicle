@@ -591,6 +591,18 @@ async def upload_file(
     }
 
 
+@app.get("/api/uploads/{filename}")
+def uploaded_file(
+    filename: str,
+    user: User = Depends(get_current_user_query),
+):
+    safe_name = Path(filename).name
+    path = settings.upload_path / safe_name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return FileResponse(path)
+
+
 # =========================
 # 项目管理
 # =========================

@@ -17,6 +17,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { ElImageViewer } from 'element-plus'
+import { resolveUploadUrls } from '../utils/uploadUrl'
 
 const props = defineProps({
   url: {
@@ -34,14 +35,16 @@ const visible = ref(false)
 const urlList = computed(() => {
   const list = []
   if (props.urls.length) {
-    list.push(...props.urls)
+    list.push(...resolveUploadUrls(props.urls))
   }
   if (props.url) {
     list.push(
-      ...String(props.url)
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean)
+      ...resolveUploadUrls(
+        String(props.url)
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
     )
   }
   return [...new Set(list)]

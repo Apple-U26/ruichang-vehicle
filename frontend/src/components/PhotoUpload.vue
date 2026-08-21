@@ -32,8 +32,8 @@
       <span class="photo-count">{{ currentUrls.length }}/{{ max }}</span>
     </div>
 
-    <div v-if="currentUrls.length" class="photo-thumbs">
-      <div v-for="(url, index) in currentUrls" :key="url" class="thumb-item">
+    <div v-if="displayUrls.length" class="photo-thumbs">
+      <div v-for="(url, index) in displayUrls" :key="url" class="thumb-item">
         <img :src="url" alt="" />
         <button
           type="button"
@@ -55,6 +55,7 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '../api/request'
 import AttachmentPreview from './AttachmentPreview.vue'
+import { resolveUploadUrls } from '../utils/uploadUrl'
 
 const props = defineProps({
   modelValue: {
@@ -78,6 +79,7 @@ const currentUrls = computed(() =>
     .map((item) => item.trim())
     .filter(Boolean)
 )
+const displayUrls = computed(() => resolveUploadUrls(currentUrls.value))
 
 function enqueue(file) {
   if (!file) return
