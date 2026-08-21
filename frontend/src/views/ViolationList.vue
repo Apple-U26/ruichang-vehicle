@@ -1,6 +1,13 @@
 <template>
   <div class="page">
     <div class="toolbar">
+      <el-input
+        v-model="keyword"
+        placeholder="车牌/类型/地点"
+        clearable
+        style="width: 220px"
+        @keyup.enter="loadData"
+      />
       <el-select
         v-model="vehicleFilter"
         placeholder="全部车辆"
@@ -30,15 +37,32 @@
           :value="item.value"
         />
       </el-select>
-      <el-button type="primary" :icon="Plus" @click="openAddDialog">
+      <el-button v-if="!isFinance" type="primary" :icon="Plus" @click="openAddDialog">
         新增违章
+      </el-button>
+      <el-button
+        v-if="isAdmin"
+        type="danger"
+        :icon="Delete"
+        :disabled="!selectedRows.length"
+        @click="batchDelete"
+      >
+        批量删除
       </el-button>
       <div class="summary">
         未处理 {{ pendingCount }} 条，罚款合计 ¥ {{ totalFine.toFixed(2) }}
       </div>
     </div>
 
-    <el-table v-loading="loading" :data="rows" border stripe class="data-table">
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      border
+      stripe
+      class="data-table"
+      @selection-change="selectedRows = $event"
+    >
+      <el-table-column type="selection" width="45" />
       <el-table-column prop="violation_date" label="违章日期" width="110" />
       <el-table-column prop="plate_no" label="车牌号" width="120" />
       <el-table-column prop="violation_type" label="违章类型" min-width="120">
@@ -66,15 +90,7 @@
       </el-table-column>
       <el-table-column label="附件" width="90">
         <template #default="{ row }">
-          <el-link
-            v-if="row.attachment_url"
-            type="primary"
-            :href="row.attachment_url"
-            target="_blank"
-          >
-            查看
-          </el-link>
-          <span v-else>-</span>
+          <AttachmentPreview :url="row.attachment_url" />
         </template>
       </el-table-column>
       <el-table-column prop="handler_name" label="处理人" width="100">
@@ -85,10 +101,24 @@
       <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" :icon="Edit" @click="editRow(row)">
+          <el-button
+            v-if="canEdit"
+            type="primary"
+            link
+            size="small"
+            :icon="Edit"
+            @click="editRow(row)"
+          >
             编辑
           </el-button>
-          <el-button type="danger" link size="small" :icon="Delete" @click="deleteRow(row)">
+          <el-button
+            v-if="isAdmin"
+            type="danger"
+            link
+            size="small"
+            :icon="Delete"
+            @click="deleteRow(row)"
+          >
             删除
           </el-button>
         </template>
@@ -150,7 +180,7 @@
               <el-input-number
                 v-model="formData.fine_amount"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -174,30 +204,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="违章附件">
-              <div class="upload-row">
-                <input
-                  ref="attachmentInput"
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.pdf"
-                  hidden
-                  @change="handleAttachment"
-                />
-                <el-button
-                  :icon="Upload"
-                  :loading="uploading"
-                  @click="attachmentInput?.click()"
-                >
-                  {{ formData.attachment_url ? '重新上传' : '上传图片' }}
-                </el-button>
-                <el-link
-                  v-if="formData.attachment_url"
-                  type="primary"
-                  :href="formData.attachment_url"
-                  target="_blank"
-                >
-                  查看
-                </el-link>
-              </div>
+              <PhotoUpload v-model="formData.attachment_url" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -221,17 +228,31 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, Plus, Upload } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus } from '@element-plus/icons-vue'
 import request from '../api/request'
+import AttachmentPreview from '../components/AttachmentPreview.vue'
+import PhotoUpload from '../components/PhotoUpload.vue'
+
+let userInfo = {}
+try {
+  userInfo = JSON.parse(
+    localStorage.getItem('userInfo') || localStorage.getItem('user') || '{}'
+  )
+} catch (error) {
+  userInfo = {}
+}
+const isAdmin = userInfo.role === 'ADMIN'
+const isFinance = userInfo.role === 'FINANCE'
+const canEdit = ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'].includes(userInfo.role)
 
 const rows = ref([])
+const selectedRows = ref([])
 const vehicles = ref([])
 const vehicleFilter = ref(null)
 const statusFilter = ref('')
+const keyword = ref('')
 const loading = ref(false)
 const saving = ref(false)
-const uploading = ref(false)
-const attachmentInput = ref()
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增违章')
 const formRef = ref()
@@ -292,10 +313,12 @@ async function loadVehicles() {
 async function loadData() {
   loading.value = true
   try {
+    selectedRows.value = []
     const res = await request.get('/violations', {
       params: {
         vehicle_id: vehicleFilter.value || undefined,
         status: statusFilter.value || undefined,
+        keyword: keyword.value || undefined,
       },
     })
     const data = unwrap(res)
@@ -349,6 +372,10 @@ function editRow(row) {
 
 async function submitForm() {
   await formRef.value.validate()
+  if (!formData.attachment_url) {
+    ElMessage.warning('请上传违章照片')
+    return
+  }
   saving.value = true
   try {
     const payload = {
@@ -381,26 +408,6 @@ async function submitForm() {
   }
 }
 
-async function handleAttachment(event) {
-  const file = event.target.files?.[0]
-  event.target.value = ''
-  if (!file) return
-
-  const uploadData = new FormData()
-  uploadData.append('file', file)
-  uploading.value = true
-  try {
-    const res = await request.post('/upload', uploadData)
-    const payload = res.data?.data || res.data || {}
-    formData.attachment_url = payload.url || ''
-    ElMessage.success('附件上传成功')
-  } catch (error) {
-    console.error('附件上传失败：', error)
-  } finally {
-    uploading.value = false
-  }
-}
-
 async function deleteRow(row) {
   try {
     await ElMessageBox.confirm(
@@ -414,6 +421,26 @@ async function deleteRow(row) {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除违章记录失败：', error)
+    }
+  }
+}
+
+async function batchDelete() {
+  if (!selectedRows.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${selectedRows.value.length} 条违章记录？`,
+      '提示',
+      { type: 'warning' }
+    )
+    const res = await request.post('/violations/batch-delete', {
+      ids: selectedRows.value.map((row) => row.id),
+    })
+    ElMessage.success(res.data?.message || '批量删除成功')
+    await loadData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败：', error)
     }
   }
 }
@@ -442,9 +469,4 @@ onMounted(() => {
   margin-top: 16px;
 }
 
-.upload-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 </style>

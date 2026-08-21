@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "江西瑞昌车辆管理系统"
     database_url: str
     jwt_secret: str
-    jwt_expire_minutes: int = 480
+    jwt_expire_minutes: int = 43200
     upload_dir: str = "uploads"
 
     model_config = SettingsConfigDict(

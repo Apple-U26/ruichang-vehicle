@@ -119,6 +119,7 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
+  Aim,
   DataBoard,
   Coin,
   FolderOpened,
@@ -126,6 +127,7 @@ import {
   Key,
   Money,
   Odometer,
+  Operation,
   SwitchButton,
   Tools,
   User,
@@ -138,8 +140,8 @@ const router = useRouter()
 
 const roleLabels = {
   ADMIN: '系统管理员',
-  VEHICLE_MANAGER: '车辆管理员',
-  PROJECT_MANAGER: '项目经理',
+  VEHICLE_MANAGER: '车辆负责人',
+  PROJECT_MANAGER: '项目负责人',
   FINANCE: '财务人员',
   DRIVER: '驾驶员',
 }
@@ -170,7 +172,7 @@ const menus = computed(() => {
       path: '/vehicles',
       label: '车辆档案',
       icon: Van,
-      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
     },
     {
       path: '/mileages',
@@ -182,31 +184,43 @@ const menus = computed(() => {
       path: '/maintenances',
       label: '维保管理',
       icon: Tools,
-      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
     },
     {
       path: '/violations',
       label: '违章管理',
       icon: Warning,
-      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
     },
     {
       path: '/fuels',
       label: '油费管理',
       icon: Coin,
-      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
     },
     {
       path: '/reimbursements',
       label: '报销管理',
       icon: Money,
-      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
     },
     {
       path: '/projects',
       label: '项目管理',
       icon: FolderOpened,
-      roles: ['ADMIN', 'VEHICLE_MANAGER'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+    },
+    {
+      path: '/welders',
+      label: '焊机档案',
+      icon: Aim,
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+    },
+    {
+      path: '/welder-inspections',
+      label: '焊机巡检',
+      icon: Operation,
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
     },
     {
       path: '/users',

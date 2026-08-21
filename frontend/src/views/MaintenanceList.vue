@@ -1,6 +1,13 @@
 <template>
   <div class="page">
     <div class="toolbar">
+      <el-input
+        v-model="keyword"
+        placeholder="车牌/项目/服务商"
+        clearable
+        style="width: 220px"
+        @keyup.enter="loadData"
+      />
       <el-select
         v-model="vehicleFilter"
         placeholder="全部车辆"
@@ -16,12 +23,29 @@
           :value="item.id"
         />
       </el-select>
-      <el-button type="primary" :icon="Plus" @click="openAddDialog">
+      <el-button v-if="!isFinance" type="primary" :icon="Plus" @click="openAddDialog">
         新增维保
+      </el-button>
+      <el-button
+        v-if="isAdmin"
+        type="danger"
+        :icon="Delete"
+        :disabled="!selectedRows.length"
+        @click="batchDelete"
+      >
+        批量删除
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="rows" border stripe class="data-table">
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      border
+      stripe
+      class="data-table"
+      @selection-change="selectedRows = $event"
+    >
+      <el-table-column type="selection" width="45" />
       <el-table-column prop="maintenance_date" label="维保日期" width="110" />
       <el-table-column prop="plate_no" label="车牌号" width="110" />
       <el-table-column prop="current_mileage" label="当前里程" width="100" />
@@ -48,10 +72,24 @@
       </el-table-column>
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" :icon="Edit" @click="editRow(row)">
+          <el-button
+            v-if="canEdit"
+            type="primary"
+            link
+            size="small"
+            :icon="Edit"
+            @click="editRow(row)"
+          >
             编辑
           </el-button>
-          <el-button type="danger" link size="small" :icon="Delete" @click="deleteRow(row)">
+          <el-button
+            v-if="isAdmin"
+            type="danger"
+            link
+            size="small"
+            :icon="Delete"
+            @click="deleteRow(row)"
+          >
             删除
           </el-button>
         </template>
@@ -93,7 +131,7 @@
               <el-input-number
                 v-model="formData.current_mileage"
                 :min="0"
-                :precision="1"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -115,7 +153,7 @@
               <el-input-number
                 v-model="formData.amount"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -135,7 +173,7 @@
               <el-input-number
                 v-model="formData.next_mileage"
                 :min="0"
-                :precision="1"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -165,6 +203,11 @@
               <el-input v-model="formData.remark" type="textarea" :rows="2" />
             </el-form-item>
           </el-col>
+          <el-col :span="24">
+            <el-form-item label="维保照片" required>
+              <PhotoUpload v-model="formData.attachment_url" />
+            </el-form-item>
+          </el-col>
         </el-row>
       </el-form>
 
@@ -183,10 +226,25 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus } from '@element-plus/icons-vue'
 import request from '../api/request'
+import PhotoUpload from '../components/PhotoUpload.vue'
+
+let userInfo = {}
+try {
+  userInfo = JSON.parse(
+    localStorage.getItem('userInfo') || localStorage.getItem('user') || '{}'
+  )
+} catch (error) {
+  userInfo = {}
+}
+const isAdmin = userInfo.role === 'ADMIN'
+const isFinance = userInfo.role === 'FINANCE'
+const canEdit = ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER'].includes(userInfo.role)
 
 const rows = ref([])
+const selectedRows = ref([])
 const vehicles = ref([])
 const vehicleFilter = ref(null)
+const keyword = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -262,8 +320,12 @@ async function loadVehicles() {
 async function loadData() {
   loading.value = true
   try {
+    selectedRows.value = []
     const res = await request.get('/maintenances', {
-      params: { vehicle_id: vehicleFilter.value || undefined },
+      params: {
+        vehicle_id: vehicleFilter.value || undefined,
+        keyword: keyword.value || undefined,
+      },
     })
     const data = unwrap(res)
     rows.value = Array.isArray(data) ? data : []
@@ -320,6 +382,10 @@ function editRow(row) {
 
 async function submitForm() {
   await formRef.value.validate()
+  if (!formData.attachment_url) {
+    ElMessage.warning('请上传维保照片')
+    return
+  }
   saving.value = true
   try {
     const payload = {
@@ -371,6 +437,26 @@ async function deleteRow(row) {
   }
 }
 
+async function batchDelete() {
+  if (!selectedRows.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${selectedRows.value.length} 条维保记录？`,
+      '提示',
+      { type: 'warning' }
+    )
+    const res = await request.post('/maintenances/batch-delete', {
+      ids: selectedRows.value.map((row) => row.id),
+    })
+    ElMessage.success(res.data?.message || '批量删除成功')
+    await Promise.all([loadData(), loadVehicles()])
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败：', error)
+    }
+  }
+}
+
 onMounted(() => {
   loadVehicles()
   loadData()
@@ -387,4 +473,5 @@ onMounted(() => {
 .data-table {
   margin-top: 16px;
 }
+
 </style>

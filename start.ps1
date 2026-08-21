@@ -21,11 +21,10 @@ if (-not (Test-Path -LiteralPath $logsDir)) {
 }
 
 function Select-BasePython {
+  $localPython = Join-Path $root 'tmp\python312\python.exe'
   $candidates = @(
-    @{ Command = 'py'; VersionArgs = @('-3.12') },
-    @{ Command = 'py'; VersionArgs = @('-3.13') },
-    @{ Command = 'py'; VersionArgs = @('-3.14') },
-    @{ Command = 'python'; VersionArgs = @() }
+    @{ Command = $localPython; VersionArgs = @() },
+    @{ Command = 'py'; VersionArgs = @('-3.12') }
   )
 
   foreach ($candidate in $candidates) {
@@ -40,7 +39,7 @@ function Select-BasePython {
     }
   }
 
-  throw '未找到可用的 Python。请安装 Python 3.12 或 3.13 后重试。'
+  throw '未找到可用的 Python 3.12，请安装后重试。'
 }
 
 function Test-Venv {

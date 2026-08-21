@@ -12,6 +12,8 @@ import ReimbursementList from '../views/ReimbursementList.vue'
 import ProjectList from '../views/ProjectList.vue'
 import UserList from '../views/UserList.vue'
 import MobileHome from '../views/MobileHome.vue'
+import WelderList from '../views/WelderList.vue'
+import WelderInspectionList from '../views/WelderInspectionList.vue'
 
 const routes = [
   {
@@ -38,7 +40,7 @@ const routes = [
         path: 'vehicles',
         component: VehicleList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
         },
       },
       {
@@ -52,35 +54,49 @@ const routes = [
         path: 'maintenances',
         component: MaintenanceList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
         },
       },
       {
         path: 'violations',
         component: ViolationList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
         },
       },
       {
         path: 'fuels',
         component: FuelList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
         },
       },
       {
         path: 'reimbursements',
         component: ReimbursementList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
         },
       },
       {
         path: 'projects',
         component: ProjectList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+        },
+      },
+      {
+        path: 'welders',
+        component: WelderList,
+        meta: {
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
+        },
+      },
+      {
+        path: 'welder-inspections',
+        component: WelderInspectionList,
+        meta: {
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
         },
       },
       {

@@ -92,7 +92,8 @@ const data = ref({
   maintenance_amount: 0,
   toll_amount: 0,
   parking_amount: 0,
-  other_amount: 0
+  other_amount: 0,
+  mileage_allowance_amount: 0
 })
 
 async function loadData() {
@@ -117,6 +118,7 @@ async function loadData() {
       toll_amount: 0,
       parking_amount: 0,
       other_amount: 0,
+      mileage_allowance_amount: 0,
       ...payload,
     }
   } catch (error) {

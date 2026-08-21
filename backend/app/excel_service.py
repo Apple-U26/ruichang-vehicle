@@ -25,6 +25,8 @@ from app.models import (
     User,
     Vehicle,
     ViolationRecord,
+    Welder,
+    WelderInspection,
 )
 
 
@@ -56,6 +58,9 @@ MAINTENANCE_TYPE_LABELS = {
     "REPAIR": "维修",
     "INSPECTION": "年检",
     "INSURANCE": "保险",
+    "MONTHLY": "月检",
+    "WEEKLY": "周检",
+    "DAILY": "日检",
 }
 
 
@@ -133,7 +138,7 @@ class ExcelService:
                     "车辆编码": v.vehicle_code,
                     "车牌号": v.plate_no,
                     "所属项目": v.project.name if v.project else "",
-                    "项目经理": v.project_manager or "",
+                    "项目负责人": v.project_manager or "",
                     "车管员": v.vehicle_manager or "",
                     "所有权": OWNERSHIP_LABELS.get(
                         v.ownership, v.ownership
@@ -298,6 +303,90 @@ class ExcelService:
         return result
 
     @staticmethod
+    def _get_welders_data(db: Session) -> List[Dict[str, Any]]:
+        welders = db.scalars(
+            select(Welder).order_by(Welder.id)
+        ).all()
+        result = []
+        for welder in welders:
+            result.append(
+                {
+                    "焊机编码": welder.welder_code,
+                    "焊机编号": welder.welder_no,
+                    "所在地": welder.location or "",
+                    "所属项目": (
+                        welder.project.name if welder.project else ""
+                    ),
+                    "项目负责人": (
+                        welder.project.manager_name
+                        if welder.project
+                        else ""
+                    ),
+                    "焊机负责人": welder.welder_manager or "",
+                    "状态": STATUS_LABELS.get(
+                        welder.status, welder.status
+                    ),
+                    "备注": welder.remark or "",
+                }
+            )
+        return result
+
+    @staticmethod
+    def _get_welder_inspections_data(
+        db: Session,
+    ) -> List[Dict[str, Any]]:
+        stmt = (
+            select(WelderInspection)
+            .join(
+                Welder,
+                Welder.id == WelderInspection.welder_id,
+            )
+            .order_by(
+                Welder.welder_no,
+                WelderInspection.inspection_date,
+            )
+        )
+        rows = db.scalars(stmt).all()
+        result = []
+        for row in rows:
+            result.append(
+                {
+                    "焊机编号": (
+                        row.welder.welder_no if row.welder else ""
+                    ),
+                    "所在地": row.location or "",
+                    "项目": (
+                        row.welder.project.name
+                        if row.welder and row.welder.project
+                        else ""
+                    ),
+                    "项目负责人": (
+                        row.welder.project.manager_name
+                        if row.welder and row.welder.project
+                        else ""
+                    ),
+                    "焊机负责人": (
+                        row.welder.welder_manager if row.welder else ""
+                    ),
+                    "日期": row.inspection_date,
+                    "巡检类型": MAINTENANCE_TYPE_LABELS.get(
+                        row.inspection_type, row.inspection_type
+                    ),
+                    "是否完成": "是" if row.completed else "否",
+                    "附件": row.attachment_url or "",
+                    "操作人": row.operator_name or "",
+                    "设备状态": (
+                        "正常"
+                        if row.device_status == "NORMAL"
+                        else "故障"
+                    ),
+                    "备注": row.remark or "",
+                    "维修说明": row.repair_note or "",
+                }
+            )
+        return result
+
+    @staticmethod
     def _get_dashboard_data(db: Session) -> Dict[str, Any]:
         total_vehicles = (
             db.scalar(select(func.count(Vehicle.id))) or 0
@@ -419,6 +508,7 @@ class ExcelService:
                     "路桥费(元)": 0,
                     "停车费(元)": 0,
                     "其他费(元)": 0,
+                    "里程补助费(元)": 0,
                     "待审批数": 0,
                 }
             return monthly_map[month]
@@ -435,6 +525,7 @@ class ExcelService:
             "TOLL": "路桥费(元)",
             "PARKING": "停车费(元)",
             "OTHER": "其他费(元)",
+            "MILEAGE_ALLOWANCE": "里程补助费(元)",
         }
         for month, expense_type, amount in expense_monthly:
             key = expense_keys.get(expense_type)
@@ -463,6 +554,8 @@ class ExcelService:
             ("维保记录", ExcelService._get_maintenances_data),
             ("违章记录", ExcelService._get_violations_data),
             ("油费记录", ExcelService._get_fuels_data),
+            ("焊机档案", ExcelService._get_welders_data),
+            ("焊机巡检", ExcelService._get_welder_inspections_data),
             ("报销单", ExcelService._get_reimbursements_data),
         ]
 
@@ -621,7 +714,7 @@ def _parse_date(value: Any, default: date | None = None) -> date | None:
 FIELD_ALIASES = {
     "plate_no": ["车牌号"],
     "project_name": ["所属项目", "项目"],
-    "project_manager": ["项目经理", "项目负责人"],
+    "project_manager": ["项目负责人", "项目经理"],
     "vehicle_manager": ["车管员", "车辆负责人"],
     "ownership": ["所有权", "车辆归属"],
     "initial_mileage": ["初始里程(km)", "初始里程"],
@@ -652,6 +745,11 @@ FIELD_ALIASES = {
     "total": ["报销总额(元)", "报销总额"],
     "applicant": ["报销人", "申请人"],
     "reimbursement_status": ["审核状态"],
+    "welder_code": ["焊机编码"],
+    "welder_no": ["焊机编号"],
+    "welder_location": ["所在地", "所在地（市级行政区）", "所在地(市级行政区）"],
+    "welder_manager": ["焊机负责人"],
+    "welder_status": ["状态"],
 }
 
 
@@ -672,7 +770,7 @@ def _find_sheet(workbook, keywords: list[str]):
     return None
 
 
-def _locate_header(ws):
+def _locate_header(ws, required_key="车牌号"):
     max_scan = min(ws.max_row or 1, 30)
     for row_idx, row in enumerate(
         ws.iter_rows(min_row=1, max_row=max_scan, values_only=True),
@@ -683,7 +781,7 @@ def _locate_header(ws):
             if value is None or str(value).strip() == "":
                 continue
             headers[_normalize_header(value)] = col_idx
-        if "车牌号" in headers:
+        if required_key in headers:
             return row_idx, headers
     return None, {}
 
@@ -730,6 +828,18 @@ def _next_vehicle_code(db: Session) -> str:
             return code
 
 
+def _next_welder_code(db: Session) -> str:
+    max_id = db.scalar(select(func.max(Welder.id))) or 0
+    while True:
+        max_id += 1
+        code = f"HJ-{max_id:06d}"
+        exists = db.scalar(
+            select(Welder).where(Welder.welder_code == code)
+        )
+        if not exists:
+            return code
+
+
 def _next_reimbursement_no(db: Session, month: str) -> str:
     sequence = (
         db.scalar(
@@ -751,9 +861,7 @@ def _import_vehicles(
 
     header_row, headers = _locate_header(ws)
     if "车牌号" not in headers:
-        raise ValueError(
-            "导入文件缺少“车牌号”列，请确认存在车辆信息工作表"
-        )
+        return 0, 0, 0
 
     created = 0
     updated = 0
@@ -1163,6 +1271,116 @@ def _import_reimbursements(
     return created
 
 
+def _parse_welder_status(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    if "在线" in text or text == "ONLINE":
+        return "ONLINE"
+    if "离线" in text or text == "OFFLINE":
+        return "OFFLINE"
+    if "故障" in text or text == "FAULT":
+        return "FAULT"
+    return "ONLINE"
+
+
+def _import_welders(
+    db: Session, workbook
+) -> tuple[int, int]:
+    ws = _find_sheet(workbook, ["焊机"])
+    if ws is None:
+        return 0, 0
+
+    header_row, headers = _locate_header(ws, required_key="焊机编号")
+    if "焊机编号" not in headers:
+        return 0, 0
+
+    created = 0
+    updated = 0
+    max_welder_id = db.scalar(select(func.max(Welder.id))) or 0
+    seen_welder_nos = set()
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        welder_no = str(_cell(row, headers, "welder_no") or "").strip()
+        if not welder_no:
+            continue
+        if welder_no in seen_welder_nos:
+            welder_no = f"*{welder_no}"
+        if (
+            welder_no in seen_welder_nos
+            or db.scalar(
+                select(Welder).where(Welder.welder_no == welder_no)
+            )
+        ):
+            continue
+        seen_welder_nos.add(welder_no)
+
+        welder_code = str(_cell(row, headers, "welder_code") or "").strip()
+        project_name = str(_cell(row, headers, "project_name") or "").strip()
+        project_manager = str(
+            _cell(row, headers, "project_manager") or ""
+        ).strip()
+        project = _get_or_create_project(
+            db, project_name, project_manager
+        )
+
+        welder = db.scalar(
+            select(Welder).where(Welder.welder_no == welder_no)
+        )
+        if welder is None:
+            if not welder_code:
+                max_welder_id += 1
+                welder_code = f"HJ-{max_welder_id:06d}"
+                while db.scalar(
+                    select(Welder).where(
+                        Welder.welder_code == welder_code
+                    )
+                ):
+                    max_welder_id += 1
+                    welder_code = f"HJ-{max_welder_id:06d}"
+            welder = Welder(
+                welder_code=welder_code,
+                welder_no=welder_no,
+                location=str(
+                    _cell(row, headers, "welder_location") or ""
+                ).strip()
+                or None,
+                project_id=project.id if project else None,
+                welder_manager=str(
+                    _cell(row, headers, "welder_manager") or ""
+                ).strip()
+                or None,
+                status=_parse_welder_status(
+                    _cell(row, headers, "welder_status")
+                ),
+                remark=str(_cell(row, headers, "remark") or "").strip()
+                or None,
+            )
+            db.add(welder)
+            created += 1
+        else:
+            if welder_code:
+                welder.welder_code = welder_code
+            if project:
+                welder.project_id = project.id
+            location = str(
+                _cell(row, headers, "welder_location") or ""
+            ).strip()
+            if location:
+                welder.location = location
+            manager = str(
+                _cell(row, headers, "welder_manager") or ""
+            ).strip()
+            if manager:
+                welder.welder_manager = manager
+            welder.status = _parse_welder_status(
+                _cell(row, headers, "welder_status")
+            )
+            remark = str(_cell(row, headers, "remark") or "").strip()
+            if remark:
+                welder.remark = remark
+            updated += 1
+
+    return created, updated
+
+
 def import_workbook(
     db: Session, content: bytes, user: User
 ) -> dict:
@@ -1173,6 +1391,7 @@ def import_workbook(
     mileage_created = _import_mileages(db, workbook, user)
     maintenance_created = _import_maintenances(db, workbook, user)
     reimbursement_created = _import_reimbursements(db, workbook, user)
+    welder_created, welder_updated = _import_welders(db, workbook)
 
     db.flush()
 
@@ -1183,6 +1402,8 @@ def import_workbook(
         parts.append(f"维保：新增 {maintenance_created} 条")
     if reimbursement_created:
         parts.append(f"报销：新增 {reimbursement_created} 条")
+    if welder_created or welder_updated:
+        parts.append(f"焊机：新增 {welder_created} 台，更新 {welder_updated} 台")
     if skipped:
         parts.append(f"跳过空行 {skipped} 条")
 
@@ -1193,6 +1414,8 @@ def import_workbook(
         "mileage_created": mileage_created,
         "maintenance_created": maintenance_created,
         "reimbursement_created": reimbursement_created,
+        "welder_created": welder_created,
+        "welder_updated": welder_updated,
         "message": "；".join(parts),
     }
 
@@ -1200,3 +1423,45 @@ def import_workbook(
 def export_workbook(db: Session) -> io.BytesIO:
     """导出完整台账（对外入口）。"""
     return ExcelService.export_full_workbook(db)
+
+
+def export_vehicle_workbook(db: Session) -> io.BytesIO:
+    """导出车辆台账：车辆及相关业务记录。"""
+    sections = [
+        ("车辆信息", ExcelService._get_vehicles_data),
+        ("里程记录", ExcelService._get_mileages_data),
+        ("维保记录", ExcelService._get_maintenances_data),
+        ("违章记录", ExcelService._get_violations_data),
+        ("油费记录", ExcelService._get_fuels_data),
+        ("报销单", ExcelService._get_reimbursements_data),
+    ]
+    wb = Workbook()
+    for index, (title, getter) in enumerate(sections):
+        ws = wb.active if index == 0 else wb.create_sheet(title)
+        ws.title = title
+        data = getter(db)
+        headers = list(data[0].keys()) if data else ["无数据"]
+        ExcelService._write_table_to_sheet(ws, data, headers, start_row=1)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
+def export_welder_workbook(db: Session) -> io.BytesIO:
+    """导出焊机台账：焊机档案和焊机巡检。"""
+    sections = [
+        ("焊机档案", ExcelService._get_welders_data),
+        ("焊机巡检", ExcelService._get_welder_inspections_data),
+    ]
+    wb = Workbook()
+    for index, (title, getter) in enumerate(sections):
+        ws = wb.active if index == 0 else wb.create_sheet(title)
+        ws.title = title
+        data = getter(db)
+        headers = list(data[0].keys()) if data else ["无数据"]
+        ExcelService._write_table_to_sheet(ws, data, headers, start_row=1)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output

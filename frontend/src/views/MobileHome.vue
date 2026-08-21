@@ -30,7 +30,7 @@
     <main class="mobile-content">
       <!-- 里程 -->
       <template v-if="activeTab === 'mileage'">
-        <section class="form-section">
+        <section v-if="!isFinance" class="form-section">
           <div class="section-title">出车登记</div>
           <el-form label-position="top" :model="outForm">
             <el-form-item label="车辆">
@@ -48,11 +48,11 @@
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="出车日期">
+            <el-form-item label="出车时间">
               <el-date-picker
                 v-model="outForm.trip_date"
-                type="date"
-                value-format="YYYY-MM-DD"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm"
                 style="width: 100%"
               />
             </el-form-item>
@@ -60,7 +60,7 @@
               <el-input-number
                 v-model="outForm.out_mileage"
                 :min="0"
-                :precision="1"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -118,7 +118,7 @@
 
       <!-- 维保 -->
       <template v-else-if="activeTab === 'maintenance'">
-        <section class="form-section">
+        <section v-if="!isFinance" class="form-section">
           <div class="section-title">维保登记</div>
           <el-form label-position="top" :model="maintenanceForm">
             <el-form-item label="车辆">
@@ -148,7 +148,7 @@
               <el-input-number
                 v-model="maintenanceForm.current_mileage"
                 :min="0"
-                :precision="1"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -167,7 +167,7 @@
               <el-input-number
                 v-model="maintenanceForm.amount"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -178,7 +178,7 @@
               <el-input-number
                 v-model="maintenanceForm.next_mileage"
                 :min="0"
-                :precision="1"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -211,7 +211,7 @@
 
       <!-- 违章 -->
       <template v-else-if="activeTab === 'violation'">
-        <section class="form-section">
+        <section v-if="!isFinance" class="form-section">
           <div class="section-title">违章登记</div>
           <el-form label-position="top" :model="violationForm">
             <el-form-item label="车辆">
@@ -255,7 +255,7 @@
               <el-input-number
                 v-model="violationForm.fine_amount"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -287,8 +287,8 @@
       </template>
 
       <!-- 油费 -->
-      <template v-else>
-        <section class="form-section">
+      <template v-else-if="activeTab === 'fuel'">
+        <section v-if="!isFinance" class="form-section">
           <div class="section-title">油费登记</div>
           <el-form label-position="top" :model="fuelForm">
             <el-form-item label="车辆">
@@ -318,7 +318,7 @@
               <el-input-number
                 v-model="fuelForm.liters"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -326,7 +326,7 @@
               <el-input-number
                 v-model="fuelForm.unit_price"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -334,7 +334,7 @@
               <el-input-number
                 v-model="fuelForm.total_amount"
                 :min="0"
-                :precision="2"
+                :precision="0"
                 style="width: 100%"
               />
               <div class="auto-tip">未填写按 ¥{{ autoFuelTotal.toFixed(2) }} 计算</div>
@@ -343,7 +343,7 @@
               <el-input-number
                 v-model="fuelForm.mileage"
                 :min="0"
-                :precision="1"
+                :precision="0"
                 style="width: 100%"
               />
             </el-form-item>
@@ -379,6 +379,264 @@
           </div>
         </section>
       </template>
+
+      <!-- 报销 -->
+      <template v-else-if="activeTab === 'reimbursement'">
+        <section v-if="!isFinance" class="form-section">
+          <div class="section-title">报销申请</div>
+          <el-form label-position="top" :model="reimbForm">
+            <el-form-item label="报销月份">
+              <el-date-picker
+                v-model="reimbForm.reimbursement_month"
+                type="month"
+                value-format="YYYY-MM"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="车辆">
+              <el-select
+                v-model="reimbForm.vehicle_id"
+                filterable
+                style="width: 100%"
+                :disabled="isDriver && Boolean(boundVehicleId)"
+              >
+                <el-option
+                  v-for="item in vehicles"
+                  :key="item.id"
+                  :label="item.plate_no"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="项目">
+              <el-select
+                v-model="reimbForm.project_id"
+                clearable
+                filterable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in projects"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="reimbForm.remark" type="textarea" :rows="2" />
+            </el-form-item>
+
+            <div class="section-title small">费用明细</div>
+            <div
+              v-for="(row, index) in reimbForm.details"
+              :key="index"
+              class="detail-row"
+            >
+              <el-form-item label="费用类型">
+                <el-select v-model="row.expense_type" style="width: 100%">
+                  <el-option label="油费" value="FUEL" />
+                  <el-option label="维保费" value="MAINTENANCE" />
+                  <el-option label="路桥费" value="TOLL" />
+                  <el-option label="停车费" value="PARKING" />
+                  <el-option label="其他" value="OTHER" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="日期">
+                <el-date-picker
+                  v-model="row.expense_date"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                />
+              </el-form-item>
+              <el-form-item label="金额(元)">
+                <el-input-number
+                  v-model="row.amount"
+                  :min="0.01"
+                  :precision="0"
+                  style="width: 100%"
+                />
+              </el-form-item>
+              <el-form-item label="说明">
+                <el-input v-model="row.description" />
+              </el-form-item>
+              <el-form-item label="费用图片">
+                <PhotoUpload v-model="row.attachment_url" />
+              </el-form-item>
+              <el-button
+                type="danger"
+                link
+                size="small"
+                @click="removeReimbDetail(index)"
+              >
+                删除该费用
+              </el-button>
+            </div>
+
+            <div class="mobile-source-row">
+              <el-select
+                v-model="selectedMileageId"
+                placeholder="选择里程记录"
+                filterable
+                style="flex: 1"
+              >
+                <el-option
+                  v-for="item in mileageCandidates"
+                  :key="item.id"
+                  :label="`${item.trip_date} · ${item.distance} 公里 · ¥${(Number(item.distance) * 0.2).toFixed(2)}`"
+                  :value="item.id"
+                />
+              </el-select>
+              <el-button
+                type="success"
+                :disabled="!selectedMileageId"
+                @click="addMobileMileage"
+              >
+                添加里程补助
+              </el-button>
+            </div>
+
+            <el-button class="secondary-btn" @click="addReimbDetail">
+              添加费用
+            </el-button>
+            <el-button
+              class="submit-btn"
+              type="primary"
+              :loading="saving"
+              @click="saveReimbursement"
+            >
+              保存报销
+            </el-button>
+          </el-form>
+        </section>
+
+        <section class="list-section">
+          <div class="section-title">最近报销</div>
+          <div v-if="reimbRows.length === 0" class="empty-tip">暂无报销记录</div>
+          <div v-for="row in reimbRows.slice(0, 8)" :key="row.id" class="list-item">
+            <div class="item-main">
+              <strong>{{ row.plate_no }}</strong>
+              <span>{{ row.reimbursement_month }} · {{ statusLabel(row.status) }}</span>
+            </div>
+            <span class="item-amount">¥ {{ row.total_amount }}</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- 项目 -->
+      <template v-else-if="activeTab === 'project'">
+        <section class="form-section">
+          <div class="section-title">新增项目</div>
+          <el-form label-position="top" :model="projectForm">
+            <el-form-item label="项目名称">
+              <el-input v-model="projectForm.name" />
+            </el-form-item>
+            <el-form-item label="项目负责人">
+              <el-input v-model="projectForm.manager_name" />
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="projectForm.remark" type="textarea" :rows="2" />
+            </el-form-item>
+            <el-button
+              class="submit-btn"
+              type="primary"
+              :loading="saving"
+              @click="saveProject"
+            >
+              保存项目
+            </el-button>
+          </el-form>
+        </section>
+
+        <section class="list-section">
+          <div class="section-title">项目列表</div>
+          <div v-if="projects.length === 0" class="empty-tip">暂无项目</div>
+          <div v-for="row in projects" :key="row.id" class="list-item">
+            <div class="item-main">
+              <strong>{{ row.name }}</strong>
+              <span>{{ row.manager_name || '未设置负责人' }}</span>
+            </div>
+            <el-tag size="small" :type="row.enabled ? 'success' : 'info'">
+              {{ row.enabled ? '启用' : '停用' }}
+            </el-tag>
+          </div>
+        </section>
+      </template>
+
+      <!-- 用户管理 -->
+      <template v-else-if="activeTab === 'users'">
+        <section class="form-section">
+          <div class="section-title">
+            {{ editingUserId ? '编辑用户' : '新增用户' }}
+          </div>
+          <el-form label-position="top" :model="userForm">
+            <el-form-item label="用户名">
+              <el-input v-model="userForm.username" :disabled="Boolean(editingUserId)" />
+            </el-form-item>
+            <el-form-item label="姓名">
+              <el-input v-model="userForm.real_name" />
+            </el-form-item>
+            <el-form-item :label="editingUserId ? '重置密码' : '初始密码'">
+              <el-input
+                v-model="userForm.password"
+                type="password"
+                show-password
+                :placeholder="editingUserId ? '留空则不修改' : '至少 6 位'"
+              />
+            </el-form-item>
+            <el-form-item label="角色">
+              <el-select v-model="userForm.role" style="width: 100%">
+                <el-option label="系统管理员" value="ADMIN" />
+                <el-option label="车辆负责人" value="VEHICLE_MANAGER" />
+                <el-option label="项目负责人" value="PROJECT_MANAGER" />
+                <el-option label="财务人员" value="FINANCE" />
+                <el-option label="驾驶员" value="DRIVER" />
+              </el-select>
+            </el-form-item>
+            <el-form-item v-if="userForm.role === 'DRIVER'" label="绑定车辆">
+              <el-select
+                v-model="userForm.vehicle_id"
+                clearable
+                filterable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in vehicles"
+                  :key="item.id"
+                  :label="`${item.plate_no}（${item.vehicle_code}）`"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-switch v-model="userForm.enabled" active-text="启用" inactive-text="停用" />
+            </el-form-item>
+            <el-button
+              class="submit-btn"
+              type="primary"
+              :loading="saving"
+              @click="saveUser"
+            >
+              {{ editingUserId ? '保存修改' : '创建用户' }}
+            </el-button>
+          </el-form>
+        </section>
+
+        <section class="list-section">
+          <div class="section-title">用户列表</div>
+          <div v-for="row in users" :key="row.id" class="list-item">
+            <div class="item-main">
+              <strong>{{ row.username }}</strong>
+              <span>
+                {{ row.real_name }} · {{ roleLabelFor(row.role) }} ·
+                {{ row.plate_no || '未绑定车辆' }}
+              </span>
+            </div>
+            <el-button size="small" @click="editUser(row)">编辑</el-button>
+          </div>
+        </section>
+      </template>
     </main>
 
     <el-dialog
@@ -392,7 +650,7 @@
           <el-input-number
             v-model="closeForm.in_mileage"
             :min="closeForm.out_mileage"
-            :precision="1"
+            :precision="0"
             style="width: 100%"
           />
         </el-form-item>
@@ -411,112 +669,25 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Camera,
   Coin,
+  FolderOpened,
+  Money,
   Tools,
+  User,
   Van,
   Warning,
 } from '@element-plus/icons-vue'
 import request from '../api/request'
-
-const PhotoUpload = defineComponent({
-  name: 'PhotoUpload',
-  props: {
-    modelValue: { type: String, default: '' },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { emit }) {
-    const uploading = ref(false)
-    const cameraInput = ref()
-    const albumInput = ref()
-
-    async function handleFile(event) {
-      const file = event.target.files?.[0]
-      event.target.value = ''
-      if (!file) return
-
-      const formData = new FormData()
-      formData.append('file', file)
-      uploading.value = true
-      try {
-        const res = await request.post('/upload', formData)
-        const payload = res.data?.data || res.data || {}
-        emit('update:modelValue', payload.url || '')
-        ElMessage.success('照片上传成功')
-      } catch (error) {
-        console.error('照片上传失败：', error)
-      } finally {
-        uploading.value = false
-      }
-    }
-
-    return () =>
-      h('div', { class: 'photo-upload' }, [
-        h('input', {
-          ref: cameraInput,
-          type: 'file',
-          accept: 'image/*',
-          capture: 'environment',
-          style: { display: 'none' },
-          onChange: handleFile,
-        }),
-        h('input', {
-          ref: albumInput,
-          type: 'file',
-          accept: 'image/*',
-          style: { display: 'none' },
-          onChange: handleFile,
-        }),
-        h(
-          'button',
-          {
-            type: 'button',
-            class: 'photo-btn',
-            disabled: uploading.value,
-            onClick: () => cameraInput.value?.click(),
-          },
-          uploading.value ? '上传中...' : '拍照'
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            class: 'photo-btn album-btn',
-            disabled: uploading.value,
-            onClick: () => albumInput.value?.click(),
-          },
-          uploading.value ? '上传中...' : '相册'
-        ),
-        props.modelValue
-          ? h(
-              'a',
-              {
-                href: props.modelValue,
-                target: '_blank',
-                class: 'photo-link',
-              },
-              '查看已上传图片'
-            )
-          : null,
-      ])
-  },
-})
+import PhotoUpload from '../components/PhotoUpload.vue'
 
 const router = useRouter()
 const activeTab = ref('mileage')
 const saving = ref(false)
 const closeVisible = ref(false)
-
-const tabs = [
-  { key: 'mileage', label: '里程', icon: Van },
-  { key: 'maintenance', label: '维保', icon: Tools },
-  { key: 'violation', label: '违章', icon: Warning },
-  { key: 'fuel', label: '油费', icon: Coin },
-]
 
 let userInfo = {}
 try {
@@ -530,21 +701,50 @@ const user = ref(userInfo)
 const roleLabel = computed(() => {
   const map = {
     ADMIN: '管理员',
-    VEHICLE_MANAGER: '车辆管理员',
-    PROJECT_MANAGER: '项目经理',
+    VEHICLE_MANAGER: '车辆负责人',
+    PROJECT_MANAGER: '项目负责人',
     FINANCE: '财务',
     DRIVER: '驾驶员',
   }
   return map[user.value.role] || user.value.role
 })
 const isDriver = computed(() => user.value.role === 'DRIVER')
+const isFinance = computed(() => user.value.role === 'FINANCE')
 const boundVehicleId = computed(() => user.value.vehicle_id || null)
+
+const tabs = computed(() => {
+  const role = user.value.role
+  const canReimburse = ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'].includes(role)
+  const canProject = ['ADMIN', 'PROJECT_MANAGER', 'FINANCE'].includes(role)
+  const items = [
+    { key: 'mileage', label: '里程', icon: Van },
+    { key: 'maintenance', label: '维保', icon: Tools },
+    { key: 'violation', label: '违章', icon: Warning },
+    { key: 'fuel', label: '油费', icon: Coin },
+  ]
+  if (canReimburse) {
+    items.push({ key: 'reimbursement', label: '报销', icon: Money })
+  }
+  if (canProject) {
+    items.push({ key: 'project', label: '项目', icon: FolderOpened })
+  }
+  if (role === 'ADMIN') {
+    items.push({ key: 'users', label: '用户', icon: User })
+  }
+  return items
+})
 
 const vehicles = ref([])
 const mileageRows = ref([])
 const maintenanceRows = ref([])
 const violationRows = ref([])
 const fuelRows = ref([])
+const reimbRows = ref([])
+const projects = ref([])
+const users = ref([])
+const editingUserId = ref(null)
+const mileageCandidates = ref([])
+const selectedMileageId = ref(null)
 
 const activeVehicles = computed(() =>
   vehicles.value.filter((item) => item.status === 'ACTIVE')
@@ -610,6 +810,29 @@ const fuelForm = reactive({
   remark: null,
 })
 
+const reimbForm = reactive({
+  reimbursement_month: '',
+  vehicle_id: null,
+  project_id: null,
+  remark: '',
+  details: [],
+})
+
+const projectForm = reactive({
+  name: '',
+  manager_name: '',
+  remark: '',
+})
+
+const userForm = reactive({
+  username: '',
+  real_name: '',
+  password: '',
+  role: 'DRIVER',
+  enabled: true,
+  vehicle_id: null,
+})
+
 const autoFuelTotal = computed(
   () => Number(fuelForm.liters || 0) * Number(fuelForm.unit_price || 0)
 )
@@ -618,19 +841,59 @@ function unwrap(res) {
   return res.data?.data || res.data || res
 }
 
+function statusLabel(status) {
+  const map = {
+    DRAFT: '草稿',
+    SUBMITTED: '待审核',
+    PROJECT_APPROVED: '待财务审核',
+    APPROVED: '已通过',
+    REJECTED: '已退回',
+  }
+  return map[status] || status
+}
+
+function roleLabelFor(role) {
+  const map = {
+    ADMIN: '系统管理员',
+    VEHICLE_MANAGER: '车辆负责人',
+    PROJECT_MANAGER: '项目负责人',
+    FINANCE: '财务人员',
+    DRIVER: '驾驶员',
+  }
+  return map[role] || role
+}
+
 function todayText() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+function nowText() {
+  const now = new Date()
+  const pad = (num) => String(num).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+}
+
 async function loadAll() {
-  const [vehicleRes, mileageRes, maintenanceRes, violationRes, fuelRes] =
+  const [
+    vehicleRes,
+    mileageRes,
+    maintenanceRes,
+    violationRes,
+    fuelRes,
+    projectRes,
+    reimbRes,
+    userRes,
+  ] =
     await Promise.allSettled([
       request.get('/vehicles'),
       request.get('/mileages'),
       request.get('/maintenances'),
       request.get('/violations'),
       request.get('/fuels'),
+      request.get('/projects'),
+      request.get('/reimbursements'),
+      request.get('/users'),
     ])
 
   if (vehicleRes.status === 'fulfilled') {
@@ -641,6 +904,14 @@ async function loadAll() {
       maintenanceForm.vehicle_id = boundVehicleId.value
       violationForm.vehicle_id = boundVehicleId.value
       fuelForm.vehicle_id = boundVehicleId.value
+      reimbForm.vehicle_id = boundVehicleId.value
+    } else if (
+      ['VEHICLE_MANAGER', 'PROJECT_MANAGER'].includes(user.value.role) &&
+      vehicles.value.length &&
+      !reimbForm.vehicle_id
+    ) {
+      reimbForm.vehicle_id = vehicles.value[0].id
+      reimbForm.project_id = vehicles.value[0].project_id || null
     }
   }
   if (mileageRes.status === 'fulfilled') {
@@ -659,11 +930,43 @@ async function loadAll() {
     const data = unwrap(fuelRes.value)
     fuelRows.value = Array.isArray(data) ? data : []
   }
+  if (projectRes.status === 'fulfilled') {
+    const data = unwrap(projectRes.value)
+    projects.value = Array.isArray(data) ? data : []
+  }
+  if (reimbRes.status === 'fulfilled') {
+    const data = unwrap(reimbRes.value)
+    reimbRows.value = Array.isArray(data) ? data : []
+  }
+  if (userRes.status === 'fulfilled') {
+    const data = unwrap(userRes.value)
+    users.value = Array.isArray(data) ? data : []
+  }
 }
+
+watch(
+  () => reimbForm.vehicle_id,
+  (vehicleId) => {
+    if (!vehicleId) return
+    const vehicle = vehicles.value.find((item) => item.id === vehicleId)
+    if (vehicle && !reimbForm.project_id) {
+      reimbForm.project_id = vehicle.project_id
+    }
+  }
+)
+
+watch(
+  [() => reimbForm.vehicle_id, () => reimbForm.reimbursement_month],
+  () => loadMileageCandidates()
+)
 
 async function saveOut() {
   if (!outForm.vehicle_id || !outForm.trip_date) {
     ElMessage.warning('请选择车辆和日期')
+    return
+  }
+  if (!outForm.out_photo) {
+    ElMessage.warning('请上传出车照片')
     return
   }
   saving.value = true
@@ -676,7 +979,7 @@ async function saveOut() {
       departure: outForm.departure || null,
       destination: outForm.destination || null,
       purpose: outForm.purpose || null,
-      out_photo: outForm.out_photo || null,
+      out_photo: outForm.out_photo,
       remark: outForm.remark,
     })
     ElMessage.success('出车登记成功')
@@ -702,11 +1005,15 @@ async function saveClose() {
     ElMessage.warning('收车里程不能小于出车里程')
     return
   }
+  if (!closeForm.in_photo) {
+    ElMessage.warning('请上传收车照片')
+    return
+  }
   saving.value = true
   try {
     await request.put(`/mileages/${closeForm.id}/close`, {
       in_mileage: closeForm.in_mileage,
-      in_photo: closeForm.in_photo || null,
+      in_photo: closeForm.in_photo,
     })
     ElMessage.success('收车成功')
     closeVisible.value = false
@@ -723,6 +1030,10 @@ async function saveMaintenance() {
     ElMessage.warning('请选择车辆和日期')
     return
   }
+  if (!maintenanceForm.attachment_url) {
+    ElMessage.warning('请上传维保照片')
+    return
+  }
   saving.value = true
   try {
     await request.post('/maintenances', {
@@ -736,7 +1047,7 @@ async function saveMaintenance() {
       operator_name: user.value.real_name,
       next_mileage: maintenanceForm.next_mileage,
       next_date: null,
-      attachment_url: maintenanceForm.attachment_url || null,
+      attachment_url: maintenanceForm.attachment_url,
       remark: maintenanceForm.remark,
     })
     ElMessage.success('维保记录保存成功')
@@ -754,6 +1065,10 @@ async function saveViolation() {
     ElMessage.warning('请选择车辆和日期')
     return
   }
+  if (!violationForm.attachment_url) {
+    ElMessage.warning('请上传违章照片')
+    return
+  }
   saving.value = true
   try {
     await request.post('/violations', {
@@ -763,7 +1078,7 @@ async function saveViolation() {
       location: violationForm.location || null,
       points: violationForm.points,
       fine_amount: violationForm.fine_amount,
-      attachment_url: violationForm.attachment_url || null,
+      attachment_url: violationForm.attachment_url,
       status: 'UNPROCESSED',
       handler_name: null,
       remark: violationForm.remark,
@@ -783,6 +1098,10 @@ async function saveFuel() {
     ElMessage.warning('请选择车辆和日期')
     return
   }
+  if (!fuelForm.attachment_url) {
+    ElMessage.warning('请上传油费照片')
+    return
+  }
   saving.value = true
   try {
     const total = Number(fuelForm.total_amount || 0)
@@ -795,7 +1114,7 @@ async function saveFuel() {
       mileage: fuelForm.mileage,
       station: fuelForm.station || null,
       invoice_no: fuelForm.invoice_no || null,
-      attachment_url: fuelForm.attachment_url || null,
+      attachment_url: fuelForm.attachment_url,
       remark: fuelForm.remark,
     })
     ElMessage.success('油费记录保存成功')
@@ -808,10 +1127,206 @@ async function saveFuel() {
   }
 }
 
+function addReimbDetail() {
+  reimbForm.details.push({
+    expense_type: 'FUEL',
+    expense_date: '',
+    amount: null,
+    description: '',
+    attachment_url: '',
+  })
+}
+
+function removeReimbDetail(index) {
+  reimbForm.details.splice(index, 1)
+}
+
+async function loadMileageCandidates() {
+  if (!reimbForm.vehicle_id || !reimbForm.reimbursement_month) {
+    mileageCandidates.value = []
+    return
+  }
+  try {
+    const res = await request.get('/mileages', {
+      params: {
+        vehicle_id: reimbForm.vehicle_id,
+        month: reimbForm.reimbursement_month,
+        exclude_used: true,
+      },
+    })
+    const data = unwrap(res)
+    mileageCandidates.value = Array.isArray(data) ? data : []
+  } catch (error) {
+    mileageCandidates.value = []
+  }
+}
+
+function addMobileMileage() {
+  const source = mileageCandidates.value.find(
+    (item) => item.id === selectedMileageId.value
+  )
+  if (!source) return
+  reimbForm.details.push({
+    expense_type: 'MILEAGE_ALLOWANCE',
+    expense_date: String(source.trip_date).slice(0, 10),
+    amount: (Number(source.distance) * 0.2).toFixed(2),
+    related_mileage: source.distance,
+    invoice_no: '',
+    description: `里程补助 ${source.trip_date}`,
+    attachment_url:
+      [source.out_photo, source.in_photo].filter(Boolean).join(',') || '',
+    is_linked: true,
+    source_type: 'MILEAGE',
+    source_id: source.id,
+    source_label: `里程 ${source.trip_date}`,
+  })
+  selectedMileageId.value = null
+}
+
+async function saveReimbursement() {
+  if (!reimbForm.reimbursement_month || !reimbForm.vehicle_id) {
+    ElMessage.warning('请选择报销月份和车辆')
+    return
+  }
+  if (!reimbForm.details.length) {
+    ElMessage.warning('请至少添加一条费用')
+    return
+  }
+  for (const row of reimbForm.details) {
+    if (!row.expense_date || !row.amount) {
+      ElMessage.warning('每条费用必须填写日期、金额并上传图片')
+      return
+    }
+    if (!row.is_linked && !row.attachment_url) {
+      ElMessage.warning('手动费用必须上传图片证明')
+      return
+    }
+  }
+
+  saving.value = true
+  try {
+    await request.post('/reimbursements', {
+      reimbursement_month: reimbForm.reimbursement_month,
+      vehicle_id: reimbForm.vehicle_id,
+      project_id: reimbForm.project_id,
+      remark: reimbForm.remark || null,
+      details: reimbForm.details.map((row) => ({
+        expense_type: row.expense_type,
+        expense_date: row.expense_date,
+        amount: row.amount,
+        related_mileage: row.related_mileage || null,
+        invoice_no: null,
+        description: row.description || null,
+        attachment_url: row.attachment_url,
+        source_type: row.source_type || null,
+        source_id: row.source_id || null,
+      })),
+    })
+    ElMessage.success('报销申请保存成功')
+    resetReimbForm()
+    await loadAll()
+  } catch (error) {
+    console.error('报销申请失败：', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveProject() {
+  if (!projectForm.name) {
+    ElMessage.warning('请输入项目名称')
+    return
+  }
+  saving.value = true
+  try {
+    await request.post('/projects', {
+      name: projectForm.name,
+      manager_name: projectForm.manager_name || null,
+      remark: projectForm.remark || null,
+    })
+    ElMessage.success('项目保存成功')
+    resetProjectForm()
+    await loadAll()
+  } catch (error) {
+    console.error('项目保存失败：', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+function resetUserForm() {
+  editingUserId.value = null
+  Object.assign(userForm, {
+    username: '',
+    real_name: '',
+    password: '',
+    role: 'DRIVER',
+    enabled: true,
+    vehicle_id: null,
+  })
+}
+
+function editUser(row) {
+  editingUserId.value = row.id
+  Object.assign(userForm, {
+    username: row.username,
+    real_name: row.real_name,
+    password: '',
+    role: row.role,
+    enabled: Boolean(row.enabled),
+    vehicle_id: row.vehicle_id,
+  })
+}
+
+async function saveUser() {
+  if (!userForm.username || !userForm.real_name) {
+    ElMessage.warning('请填写用户名和姓名')
+    return
+  }
+  if (!editingUserId.value && (!userForm.password || userForm.password.length < 6)) {
+    ElMessage.warning('初始密码至少 6 位')
+    return
+  }
+  if (editingUserId.value && userForm.password && userForm.password.length < 6) {
+    ElMessage.warning('重置密码至少 6 位')
+    return
+  }
+
+  saving.value = true
+  try {
+    if (editingUserId.value) {
+      await request.put(`/users/${editingUserId.value}`, {
+        real_name: userForm.real_name,
+        role: userForm.role,
+        enabled: userForm.enabled,
+        password: userForm.password || null,
+        vehicle_id: userForm.role === 'DRIVER' ? userForm.vehicle_id : null,
+      })
+      ElMessage.success('用户修改成功')
+    } else {
+      await request.post('/users', {
+        username: userForm.username,
+        real_name: userForm.real_name,
+        password: userForm.password,
+        role: userForm.role,
+        enabled: userForm.enabled,
+        vehicle_id: userForm.role === 'DRIVER' ? userForm.vehicle_id : null,
+      })
+      ElMessage.success('用户创建成功')
+    }
+    resetUserForm()
+    await loadAll()
+  } catch (error) {
+    console.error('保存用户失败：', error)
+  } finally {
+    saving.value = false
+  }
+}
+
 function resetOutForm() {
   Object.assign(outForm, {
     vehicle_id: null,
-    trip_date: todayText(),
+    trip_date: nowText(),
     out_mileage: 0,
     driver_name: user.value.real_name || '',
     departure: '',
@@ -865,6 +1380,25 @@ function resetFuelForm() {
   })
 }
 
+function resetReimbForm() {
+  selectedMileageId.value = null
+  Object.assign(reimbForm, {
+    reimbursement_month: '',
+    vehicle_id: boundVehicleId.value || null,
+    project_id: null,
+    remark: '',
+    details: [],
+  })
+}
+
+function resetProjectForm() {
+  Object.assign(projectForm, {
+    name: '',
+    manager_name: '',
+    remark: '',
+  })
+}
+
 const logout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
@@ -877,6 +1411,9 @@ onMounted(() => {
   resetMaintenanceForm()
   resetViolationForm()
   resetFuelForm()
+  resetReimbForm()
+  resetProjectForm()
+  resetUserForm()
   loadAll()
 })
 </script>
@@ -958,10 +1495,34 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
+.section-title.small {
+  font-size: 14px;
+  margin: 12px 0 8px;
+}
+
+.detail-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
 .submit-btn {
   width: 100%;
   height: 44px;
   margin-top: 4px;
+}
+
+.secondary-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.mobile-source-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .list-item {
@@ -1011,30 +1572,4 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-:deep(.photo-upload) {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-:deep(.photo-btn) {
-  border: 1px dashed #cbd5e1;
-  background: #f8fafc;
-  color: #374151;
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 14px;
-}
-
-:deep(.album-btn) {
-  background: #fff;
-  color: #2f6fad;
-  border: 1px solid #2f6fad;
-}
-
-:deep(.photo-link) {
-  color: #2f6fad;
-  font-size: 13px;
-}
 </style>

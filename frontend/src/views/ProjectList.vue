@@ -1,17 +1,39 @@
 <template>
   <div class="page">
     <div class="toolbar">
-      <el-button type="primary" :icon="Plus" @click="openAddDialog">
+      <el-button v-if="canManage" type="primary" :icon="Plus" @click="openAddDialog">
         新增项目
+      </el-button>
+      <el-button
+        v-if="isAdmin"
+        type="danger"
+        :icon="Delete"
+        :disabled="!selectedRows.length"
+        @click="batchDelete"
+      >
+        批量删除
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="rows" border stripe class="data-table">
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      border
+      stripe
+      class="data-table"
+      @selection-change="selectedRows = $event"
+    >
+      <el-table-column type="selection" width="45" />
       <el-table-column prop="id" label="ID" width="70" />
       <el-table-column prop="name" label="项目名称" min-width="180" />
-      <el-table-column prop="manager_name" label="项目经理" width="130">
+      <el-table-column prop="manager_name" label="项目负责人" width="130">
         <template #default="{ row }">
           {{ row.manager_name || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="location" label="所在地" min-width="140">
+        <template #default="{ row }">
+          {{ row.location || '-' }}
         </template>
       </el-table-column>
       <el-table-column prop="enabled" label="状态" width="100">
@@ -24,10 +46,10 @@
       <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" :icon="Edit" @click="editRow(row)">
+          <el-button v-if="canEditRow(row)" type="primary" link size="small" :icon="Edit" @click="editRow(row)">
             编辑
           </el-button>
-          <el-button type="danger" link size="small" :icon="Delete" @click="deleteRow(row)">
+          <el-button v-if="isAdmin" type="danger" link size="small" :icon="Delete" @click="deleteRow(row)">
             删除
           </el-button>
         </template>
@@ -44,8 +66,11 @@
         <el-form-item label="项目名称" prop="name">
           <el-input v-model="formData.name" />
         </el-form-item>
-        <el-form-item label="项目经理">
+        <el-form-item label="项目负责人">
           <el-input v-model="formData.manager_name" />
+        </el-form-item>
+        <el-form-item label="所在地">
+          <el-input v-model="formData.location" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="formData.enabled" active-text="启用" inactive-text="停用" />
@@ -71,7 +96,29 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus } from '@element-plus/icons-vue'
 import request from '../api/request'
 
+let userInfo = {}
+try {
+  userInfo = JSON.parse(
+    localStorage.getItem('userInfo') || localStorage.getItem('user') || '{}'
+  )
+} catch (error) {
+  userInfo = {}
+}
+const canManage = ['ADMIN', 'PROJECT_MANAGER', 'FINANCE'].includes(userInfo.role)
+const isAdmin = userInfo.role === 'ADMIN'
+const userRole = userInfo.role
+const userRealName = userInfo.real_name || ''
+
+function canEditRow(row) {
+  if (userRole === 'ADMIN' || userRole === 'FINANCE') return true
+  if (userRole === 'PROJECT_MANAGER') {
+    return row.manager_name === userRealName
+  }
+  return false
+}
+
 const rows = ref([])
+const selectedRows = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -82,6 +129,7 @@ const formData = reactive({
   id: null,
   name: '',
   manager_name: '',
+  location: '',
   enabled: true,
   remark: '',
 })
@@ -97,6 +145,7 @@ function unwrap(res) {
 async function loadData() {
   loading.value = true
   try {
+    selectedRows.value = []
     const res = await request.get('/projects')
     const data = unwrap(res)
     rows.value = Array.isArray(data) ? data : []
@@ -112,6 +161,7 @@ function resetForm() {
     id: null,
     name: '',
     manager_name: '',
+    location: '',
     enabled: true,
     remark: '',
   })
@@ -129,6 +179,7 @@ function editRow(row) {
     id: row.id,
     name: row.name,
     manager_name: row.manager_name || '',
+    location: row.location || '',
     enabled: Boolean(row.enabled),
     remark: row.remark || '',
   })
@@ -142,6 +193,7 @@ async function submitForm() {
     const payload = {
       name: formData.name,
       manager_name: formData.manager_name || null,
+      location: formData.location || null,
       enabled: formData.enabled,
       remark: formData.remark || null,
     }
@@ -180,6 +232,26 @@ async function deleteRow(row) {
   }
 }
 
+async function batchDelete() {
+  if (!selectedRows.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${selectedRows.value.length} 个项目？`,
+      '提示',
+      { type: 'warning' }
+    )
+    const res = await request.post('/projects/batch-delete', {
+      ids: selectedRows.value.map((row) => row.id),
+    })
+    ElMessage.success(res.data?.message || '批量删除成功')
+    await loadData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败：', error)
+    }
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -192,4 +264,5 @@ onMounted(loadData)
 .data-table {
   margin-top: 16px;
 }
+
 </style>

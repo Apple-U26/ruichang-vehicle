@@ -1,6 +1,11 @@
 from sqlalchemy import select
 
-from app.database import Base, engine, ensure_column, SessionLocal
+from app.database import (
+    Base,
+    engine,
+    ensure_column,
+    SessionLocal,
+)
 from app.models import Project, User, Vehicle
 from app.security import hash_password
 
@@ -9,14 +14,16 @@ def main():
     Base.metadata.create_all(bind=engine)
     ensure_column("sys_user", "vehicle_id", "BIGINT NULL")
     ensure_column("violation_record", "attachment_url", "VARCHAR(500)")
+    ensure_column("project_info", "location", "VARCHAR(200)")
+    ensure_column("project_info", "manager_user_id", "BIGINT NULL")
 
     db = SessionLocal()
 
     try:
         users = [
             ("admin", "系统管理员", "ADMIN"),
-            ("vehicle_manager", "车辆管理员", "VEHICLE_MANAGER"),
-            ("project_manager", "项目经理", "PROJECT_MANAGER"),
+            ("vehicle_manager", "车辆负责人", "VEHICLE_MANAGER"),
+            ("project_manager", "项目负责人", "PROJECT_MANAGER"),
             ("finance", "财务人员", "FINANCE"),
             ("driver", "驾驶员", "DRIVER"),
         ]
@@ -41,7 +48,7 @@ def main():
             db.add(
                 Project(
                     name="示范项目",
-                    manager_name="项目经理",
+                    manager_name="项目负责人",
                     enabled=True,
                     remark="系统初始化项目",
                 )
@@ -55,8 +62,8 @@ def main():
                 vehicle_code="CL-000001",
                 plate_no="赣A00001",
                 project_id=project.id if project else None,
-                project_manager="项目经理",
-                vehicle_manager="车辆管理员",
+                project_manager="项目负责人",
+                vehicle_manager="车辆负责人",
                 ownership="COMPANY",
                 initial_mileage=0,
                 current_mileage=0,

@@ -39,15 +39,29 @@
       </el-select>
 
       <div class="actions">
-        <el-button type="primary" :icon="Plus" @click="openAddDialog">
+        <el-button
+          v-if="isAdmin"
+          type="danger"
+          :icon="Delete"
+          :disabled="!selectedRows.length"
+          @click="batchDelete"
+        >
+          批量删除
+        </el-button>
+        <el-button v-if="canManage" type="primary" :icon="Plus" @click="openAddDialog">
           新增车辆
         </el-button>
-        <el-button :icon="Upload" :loading="importing" @click="fileInput?.click()">
+        <el-button v-if="canManage" :icon="Upload" :loading="importing" @click="fileInput?.click()">
           导入 Excel
         </el-button>
-        <el-button :icon="Download" :loading="exporting" @click="handleExport">
+        <a
+          class="el-button export-link"
+          :href="vehicleExportUrl"
+          :download="`车辆台账-${today}.xlsx`"
+        >
+          <el-icon style="margin-right: 4px"><Download /></el-icon>
           导出 Excel
-        </el-button>
+        </a>
         <input
           ref="fileInput"
           type="file"
@@ -64,7 +78,9 @@
       border
       stripe
       class="data-table"
+      @selection-change="selectedRows = $event"
     >
+      <el-table-column type="selection" width="45" />
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="vehicle_code" label="车辆编码" width="110" />
       <el-table-column prop="plate_no" label="车牌号" width="110" />
@@ -73,7 +89,7 @@
           {{ row.project_name || '-' }}
         </template>
       </el-table-column>
-      <el-table-column prop="project_manager" label="项目经理" width="100" />
+      <el-table-column prop="project_manager" label="项目负责人" width="100" />
       <el-table-column prop="vehicle_manager" label="车管员" width="100" />
       <el-table-column prop="ownership" label="所有权" width="110">
         <template #default="{ row }">
@@ -90,31 +106,24 @@
         </template>
       </el-table-column>
       <el-table-column prop="vehicle_age" label="车龄(年)" width="80" />
+      <el-table-column label="车辆图片" width="90">
+        <template #default="{ row }">
+          <AttachmentPreview :url="row.appearance_url" />
+        </template>
+      </el-table-column>
       <el-table-column prop="violation_info" label="违章信息" min-width="120" show-overflow-tooltip />
       <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" :icon="Edit" @click="editVehicle(row)">
+          <el-button v-if="canEditRow(row)" type="primary" link size="small" :icon="Edit" @click="editVehicle(row)">
             编辑
           </el-button>
-          <el-button type="danger" link size="small" :icon="Delete" @click="deleteVehicle(row)">
+          <el-button v-if="isAdmin" type="danger" link size="small" :icon="Delete" @click="deleteVehicle(row)">
             删除
           </el-button>
         </template>
       </el-table-column>
     </el-table>
-
-    <div class="pagination-wrapper">
-      <el-pagination
-        v-model:page-size="pageSize"
-        v-model:current-page="currentPage"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handlePageChange"
-        @current-change="handlePageChange"
-      />
-    </div>
 
     <el-dialog
       v-model="dialogVisible"
@@ -142,13 +151,16 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="项目经理">
+            <el-form-item label="项目负责人">
               <el-input v-model="formData.project_manager" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="车管员">
-              <el-input v-model="formData.vehicle_manager" />
+              <el-input
+                v-model="formData.vehicle_manager"
+                :disabled="userRole === 'VEHICLE_MANAGER'"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -180,7 +192,7 @@
               <el-input-number
                 v-model="formData.initial_mileage"
                 :min="0"
-                :disabled="Boolean(formData.id)"
+                :disabled="Boolean(formData.id) && !isAdmin"
                 style="width: 100%"
               />
             </el-form-item>
@@ -193,6 +205,11 @@
                 :max="50"
                 style="width: 100%"
               />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="车辆图片">
+              <PhotoUpload v-model="formData.appearance_url" :max="10" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -231,18 +248,47 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Download, Edit, Plus, Upload } from '@element-plus/icons-vue'
 import request from '../api/request'
+import AttachmentPreview from '../components/AttachmentPreview.vue'
+import PhotoUpload from '../components/PhotoUpload.vue'
+
+let userInfo = {}
+try {
+  userInfo = JSON.parse(
+    localStorage.getItem('userInfo') || localStorage.getItem('user') || '{}'
+  )
+} catch (error) {
+  userInfo = {}
+}
+const canManage = ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'].includes(userInfo.role)
+const userRole = userInfo.role
+const userRealName = userInfo.real_name || ''
+const isAdmin = userRole === 'ADMIN'
+
+function canEditRow(row) {
+  if (userRole === 'ADMIN') return true
+  if (userRole === 'PROJECT_MANAGER') {
+    return row.project_manager_name === userRealName
+  }
+  if (userRole === 'VEHICLE_MANAGER') {
+    return row.vehicle_manager === userRealName
+  }
+  return false
+}
 
 const keyword = ref('')
 const statusFilter = ref('')
 const projectFilter = ref(null)
 const tableData = ref([])
+const selectedRows = ref([])
 const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(10)
 
 const importing = ref(false)
-const exporting = ref(false)
 const fileInput = ref(null)
+const today = new Date().toISOString().slice(0, 10)
+const vehicleExportUrl = computed(() => {
+  const token = localStorage.getItem('token') || ''
+  return `/api/excel/export/vehicles?token=${encodeURIComponent(token)}`
+})
 
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增车辆')
@@ -275,6 +321,7 @@ const formData = reactive({
   initial_mileage: 0,
   status: 'ACTIVE',
   vehicle_age: null,
+  appearance_url: '',
   violation_info: '',
   remark: '',
 })
@@ -284,11 +331,8 @@ const formRules = {
   initial_mileage: [{ required: true, message: '请输入初始里程', trigger: 'change' }],
 }
 
-const total = computed(() => tableData.value.length)
-
 const displayData = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return tableData.value.slice(start, start + pageSize.value)
+  return tableData.value
 })
 
 function statusLabel(status) {
@@ -324,6 +368,7 @@ function ownershipLabel(ownership) {
 async function loadData() {
   loading.value = true
   try {
+    selectedRows.value = []
     const res = await request.get('/vehicles', {
       params: {
         keyword: keyword.value || undefined,
@@ -351,11 +396,6 @@ async function loadProjects() {
 }
 
 function handleSearch() {
-  currentPage.value = 1
-  loadData()
-}
-
-function handlePageChange() {
   loadData()
 }
 
@@ -369,6 +409,7 @@ function resetForm() {
   formData.initial_mileage = 0
   formData.status = 'ACTIVE'
   formData.vehicle_age = null
+  formData.appearance_url = ''
   formData.violation_info = ''
   formData.remark = ''
 }
@@ -391,6 +432,7 @@ function editVehicle(row) {
     initial_mileage: Number(row.initial_mileage || 0),
     status: row.status,
     vehicle_age: row.vehicle_age,
+    appearance_url: row.appearance_url || '',
     violation_info: row.violation_info || '',
     remark: row.remark || '',
   })
@@ -405,11 +447,15 @@ async function submitForm() {
       plate_no: formData.plate_no,
       project_id: formData.project_id,
       project_manager: formData.project_manager || null,
-      vehicle_manager: formData.vehicle_manager || null,
+      vehicle_manager:
+        userRole === 'VEHICLE_MANAGER'
+          ? userRealName
+          : formData.vehicle_manager || null,
       ownership: formData.ownership,
       initial_mileage: Number(formData.initial_mileage || 0),
       status: formData.status,
       vehicle_age: formData.vehicle_age,
+      appearance_url: formData.appearance_url || null,
       violation_info: formData.violation_info || null,
       remark: formData.remark || null,
     }
@@ -447,6 +493,26 @@ async function deleteVehicle(row) {
   }
 }
 
+async function batchDelete() {
+  if (!selectedRows.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${selectedRows.value.length} 辆车？相关业务记录将一并删除。`,
+      '提示',
+      { type: 'warning' }
+    )
+    const res = await request.post('/vehicles/batch-delete', {
+      ids: selectedRows.value.map((row) => row.id),
+    })
+    ElMessage.success(res.data?.message || '批量删除成功')
+    await loadData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败：', error)
+    }
+  }
+}
+
 async function handleImport(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
@@ -465,27 +531,6 @@ async function handleImport(event) {
     console.error('导入失败：', error)
   } finally {
     importing.value = false
-  }
-}
-
-async function handleExport() {
-  exporting.value = true
-  try {
-    const res = await request.get('/excel/export', {
-      responseType: 'blob',
-    })
-    const url = URL.createObjectURL(res.data)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `车辆里程维保报销台账-${new Date().toISOString().slice(0, 10)}.xlsx`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-  } catch (error) {
-    console.error('导出失败：', error)
-  } finally {
-    exporting.value = false
   }
 }
 
@@ -509,13 +554,13 @@ onMounted(() => {
   gap: 8px;
 }
 
+.export-link,
+.export-link:hover {
+  text-decoration: none;
+}
+
 .data-table {
   margin-top: 16px;
 }
 
-.pagination-wrapper {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-}
 </style>

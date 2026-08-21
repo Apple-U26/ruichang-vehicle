@@ -17,6 +17,10 @@ from app.models import User
 password_hash = PasswordHash.recommended()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl="/api/auth/token",
+    auto_error=False,
+)
 
 DbSession = Annotated[Session, Depends(get_db)]
 AccessToken = Annotated[str, Depends(oauth2_scheme)]
@@ -53,12 +57,31 @@ def get_current_user(
     token: AccessToken,
     db: DbSession,
 ) -> User:
-    credentials_error = HTTPException(
+    if not token:
+        raise credentials_error()
+    return get_user_from_token(token, db)
+
+
+def get_current_user_query(
+    token: str | None = None,
+    header_token: str | None = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db),
+) -> User:
+    actual_token = token or header_token
+    if not actual_token:
+        raise credentials_error()
+    return get_user_from_token(actual_token, db)
+
+
+def credentials_error() -> HTTPException:
+    return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="登录状态已失效",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+
+def get_user_from_token(token: str, db: Session) -> User:
     try:
         payload = jwt.decode(
             token,
@@ -67,11 +90,11 @@ def get_current_user(
         )
         subject = payload.get("sub")
         if subject is None:
-            raise credentials_error
+            raise credentials_error()
 
         user_id = int(subject)
     except (InvalidTokenError, TypeError, ValueError) as exc:
-        raise credentials_error from exc
+        raise credentials_error() from exc
 
     user = db.get(User, user_id)
 

@@ -51,10 +51,17 @@ class Project(Base):
         String(100), unique=True, nullable=False
     )
     manager_name: Mapped[str | None] = mapped_column(String(50))
+    manager_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sys_user.id"), index=True
+    )
+    location: Mapped[str | None] = mapped_column(String(200))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     remark: Mapped[str | None] = mapped_column(Text)
 
     vehicles: Mapped[list["Vehicle"]] = relationship(
+        back_populates="project"
+    )
+    welders: Mapped[list["Welder"]] = relationship(
         back_populates="project"
     )
 
@@ -135,11 +142,12 @@ class MileageRecord(Base):
     vehicle_id: Mapped[int] = mapped_column(
         ForeignKey("vehicle_info.id"), index=True
     )
-    trip_date: Mapped[date] = mapped_column(Date, index=True)
+    trip_date: Mapped[datetime] = mapped_column(DateTime, index=True)
 
     out_mileage: Mapped[Decimal] = mapped_column(Numeric(12, 1))
     in_mileage: Mapped[Decimal | None] = mapped_column(Numeric(12, 1))
     distance: Mapped[Decimal] = mapped_column(Numeric(12, 1), default=0)
+    close_time: Mapped[datetime | None] = mapped_column(DateTime)
 
     driver_name: Mapped[str | None] = mapped_column(String(50))
     departure: Mapped[str | None] = mapped_column(String(100))
@@ -264,6 +272,76 @@ class FuelRecord(Base):
     )
 
 
+class Welder(Base):
+    __tablename__ = "welder_archive"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    welder_code: Mapped[str] = mapped_column(
+        String(30), unique=True, index=True
+    )
+    welder_no: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, nullable=False
+    )
+    location: Mapped[str | None] = mapped_column(String(100))
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("project_info.id"), index=True
+    )
+    welder_manager: Mapped[str | None] = mapped_column(String(50))
+
+    # ONLINE、OFFLINE、FAULT
+    status: Mapped[str] = mapped_column(
+        String(20), default="ONLINE"
+    )
+    remark: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now
+    )
+
+    project: Mapped["Project | None"] = relationship(
+        back_populates="welders"
+    )
+    inspections: Mapped[list["WelderInspection"]] = relationship(
+        back_populates="welder",
+        cascade="all, delete-orphan",
+    )
+
+
+class WelderInspection(Base):
+    __tablename__ = "welder_inspection"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    welder_id: Mapped[int] = mapped_column(
+        ForeignKey("welder_archive.id"), index=True
+    )
+    location: Mapped[str | None] = mapped_column(String(100))
+    inspection_date: Mapped[datetime] = mapped_column(
+        DateTime, index=True
+    )
+
+    # MONTHLY、WEEKLY、DAILY
+    inspection_type: Mapped[str] = mapped_column(String(20))
+    completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    attachment_url: Mapped[str | None] = mapped_column(String(500))
+    operator_name: Mapped[str | None] = mapped_column(String(50))
+
+    # NORMAL、FAULT
+    device_status: Mapped[str] = mapped_column(String(20))
+    remark: Mapped[str | None] = mapped_column(Text)
+    repair_note: Mapped[str | None] = mapped_column(String(500))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now
+    )
+
+    welder: Mapped["Welder"] = relationship(
+        back_populates="inspections"
+    )
+
+
 class Reimbursement(Base):
     __tablename__ = "reimbursement"
 
@@ -335,6 +413,8 @@ class ReimbursementDetail(Base):
     invoice_no: Mapped[str | None] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(500))
     attachment_url: Mapped[str | None] = mapped_column(String(500))
+    source_type: Mapped[str | None] = mapped_column(String(30))
+    source_id: Mapped[int | None] = mapped_column(Integer)
 
     reimbursement: Mapped["Reimbursement"] = relationship(
         back_populates="details"

@@ -45,6 +45,27 @@ def ensure_column(
                 )
 
 
+def ensure_column_type(
+    table_name: str,
+    column_name: str,
+    column_ddl: str,
+) -> None:
+    inspector = inspect(engine)
+    if table_name in inspector.get_table_names():
+        columns = {
+            column["name"]: column["type"]
+            for column in inspector.get_columns(table_name)
+        }
+        if column_name in columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        f"MODIFY COLUMN {column_name} {column_ddl}"
+                    )
+                )
+
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:

@@ -34,10 +34,20 @@
           {{ formatDate(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" :icon="Edit" @click="editRow(row)">
             编辑
+          </el-button>
+          <el-button
+            v-if="row.role !== 'ADMIN'"
+            type="danger"
+            link
+            size="small"
+            :icon="Delete"
+            @click="deleteUser(row)"
+          >
+            删除
           </el-button>
         </template>
       </el-table-column>
@@ -114,8 +124,8 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Edit, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Edit, Plus } from '@element-plus/icons-vue'
 import request from '../api/request'
 
 const rows = ref([])
@@ -128,8 +138,8 @@ const formRef = ref()
 
 const roleOptions = [
   { value: 'ADMIN', label: '系统管理员' },
-  { value: 'VEHICLE_MANAGER', label: '车辆管理员' },
-  { value: 'PROJECT_MANAGER', label: '项目经理' },
+  { value: 'VEHICLE_MANAGER', label: '车辆负责人' },
+  { value: 'PROJECT_MANAGER', label: '项目负责人' },
   { value: 'FINANCE', label: '财务人员' },
   { value: 'DRIVER', label: '驾驶员' },
 ]
@@ -184,8 +194,8 @@ async function loadVehicles() {
 function roleLabel(role) {
   const map = {
     ADMIN: '系统管理员',
-    VEHICLE_MANAGER: '车辆管理员',
-    PROJECT_MANAGER: '项目经理',
+    VEHICLE_MANAGER: '车辆负责人',
+    PROJECT_MANAGER: '项目负责人',
     FINANCE: '财务人员',
     DRIVER: '驾驶员',
   }
@@ -288,6 +298,23 @@ async function submitForm() {
   }
 }
 
+async function deleteUser(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除用户 ${row.username}？`,
+      '提示',
+      { type: 'warning' }
+    )
+    const res = await request.delete(`/users/${row.id}`)
+    ElMessage.success(res.data?.message || '删除成功')
+    await loadData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除用户失败：', error)
+    }
+  }
+}
+
 onMounted(() => {
   loadData()
   loadVehicles()
@@ -303,4 +330,5 @@ onMounted(() => {
 .data-table {
   margin-top: 16px;
 }
+
 </style>
