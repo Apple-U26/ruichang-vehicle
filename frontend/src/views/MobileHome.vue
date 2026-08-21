@@ -569,6 +569,206 @@
         </section>
       </template>
 
+      <!-- 焊机档案 -->
+      <template v-else-if="activeTab === 'welder'">
+        <section v-if="canManageWelder" class="form-section">
+          <div class="section-title">
+            {{ welderForm.id ? '编辑焊机' : '新增焊机' }}
+          </div>
+          <el-form label-position="top" :model="welderForm">
+            <el-form-item label="焊机编号">
+              <el-input v-model="welderForm.welder_no" />
+            </el-form-item>
+            <el-form-item label="所属项目">
+              <el-select
+                v-model="welderForm.project_id"
+                clearable
+                filterable
+                style="width: 100%"
+                @change="handleWelderProjectChange"
+              >
+                <el-option
+                  v-for="item in projects"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="所在地">
+              <el-input v-model="welderForm.location" />
+            </el-form-item>
+            <el-form-item label="焊机负责人">
+              <el-input v-model="welderForm.welder_manager" />
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-select v-model="welderForm.status" style="width: 100%">
+                <el-option label="在线" value="ONLINE" />
+                <el-option label="离线" value="OFFLINE" />
+                <el-option label="故障" value="FAULT" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="welderForm.remark" type="textarea" :rows="2" />
+            </el-form-item>
+            <el-button
+              class="submit-btn"
+              type="primary"
+              :loading="saving"
+              @click="saveWelder"
+            >
+              {{ welderForm.id ? '保存修改' : '新增焊机' }}
+            </el-button>
+            <el-button
+              v-if="welderForm.id"
+              class="submit-btn"
+              @click="resetWelderForm"
+            >
+              取消编辑
+            </el-button>
+          </el-form>
+        </section>
+
+        <section class="list-section">
+          <div class="section-title">焊机列表</div>
+          <div v-if="welders.length === 0" class="empty-tip">暂无焊机</div>
+          <div v-for="row in welders" :key="row.id" class="list-item">
+            <div class="item-main">
+              <strong>{{ row.welder_no }}</strong>
+              <span>
+                {{ row.welder_code }} · {{ row.project_name || '未关联项目' }}
+                · {{ row.location || '未填写所在地' }}
+              </span>
+            </div>
+            <div class="item-actions">
+              <el-tag size="small" :type="welderStatusTag(row.status)">
+                {{ welderStatusLabel(row.status) }}
+              </el-tag>
+              <el-button
+                v-if="canManageWelder"
+                size="small"
+                @click="editWelder(row)"
+              >
+                编辑
+              </el-button>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- 焊机巡检 -->
+      <template v-else-if="activeTab === 'inspection'">
+        <section v-if="canManageWelder" class="form-section">
+          <div class="section-title">
+            {{ inspectionForm.id ? '编辑巡检单' : '新增巡检单' }}
+          </div>
+          <el-form label-position="top" :model="inspectionForm">
+            <el-form-item label="焊机">
+              <el-select
+                v-model="inspectionForm.welder_id"
+                filterable
+                style="width: 100%"
+                @change="handleInspectionWelderChange"
+              >
+                <el-option
+                  v-for="item in welders"
+                  :key="item.id"
+                  :label="`${item.welder_no}（${item.welder_code}）`"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="巡检日期">
+              <el-date-picker
+                v-model="inspectionForm.inspection_date"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="巡检类型">
+              <el-select v-model="inspectionForm.inspection_type" style="width: 100%">
+                <el-option label="月检" value="MONTHLY" />
+                <el-option label="周检" value="WEEKLY" />
+                <el-option label="日检" value="DAILY" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="设备状态">
+              <el-select v-model="inspectionForm.device_status" style="width: 100%">
+                <el-option label="正常" value="NORMAL" />
+                <el-option label="故障" value="FAULT" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="是否完成">
+              <el-switch
+                v-model="inspectionForm.completed"
+                active-text="完成"
+                inactive-text="未完成"
+              />
+            </el-form-item>
+            <el-form-item label="操作人">
+              <el-input v-model="inspectionForm.operator_name" />
+            </el-form-item>
+            <el-form-item label="巡检照片">
+              <PhotoUpload v-model="inspectionForm.attachment_url" />
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="inspectionForm.remark" type="textarea" :rows="2" />
+            </el-form-item>
+            <el-button
+              class="submit-btn"
+              type="primary"
+              :loading="saving"
+              @click="saveInspection"
+            >
+              {{ inspectionForm.id ? '保存修改' : '新增巡检' }}
+            </el-button>
+            <el-button
+              v-if="inspectionForm.id"
+              class="submit-btn"
+              @click="resetInspectionForm"
+            >
+              取消编辑
+            </el-button>
+          </el-form>
+        </section>
+
+        <section class="list-section">
+          <div class="section-title">巡检记录</div>
+          <div v-if="inspectionRows.length === 0" class="empty-tip">
+            暂无巡检记录
+          </div>
+          <div v-for="row in inspectionRows" :key="row.id" class="list-item">
+            <div class="item-main">
+              <strong>{{ row.welder_no }}</strong>
+              <span>
+                {{ row.inspection_date }} ·
+                {{ inspectionTypeLabel(row.inspection_type) }} ·
+                {{ row.device_status === 'FAULT' ? '故障' : '正常' }}
+              </span>
+            </div>
+            <div class="item-actions">
+              <AttachmentPreview :url="row.attachment_url" />
+              <el-button
+                v-if="canManageWelder && row.device_status === 'FAULT'"
+                size="small"
+                type="warning"
+                @click="repairInspection(row)"
+              >
+                维修说明
+              </el-button>
+              <el-button
+                v-if="canManageWelder"
+                size="small"
+                @click="editInspection(row)"
+              >
+                编辑
+              </el-button>
+            </div>
+          </div>
+        </section>
+      </template>
+
       <!-- 用户管理 -->
       <template v-else-if="activeTab === 'users'">
         <section class="form-section">
@@ -676,11 +876,13 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  Aim,
   Coin,
   FolderOpened,
   Money,
+  Operation,
   Tools,
   User,
   Van,
@@ -716,12 +918,16 @@ const roleLabel = computed(() => {
 })
 const isDriver = computed(() => user.value.role === 'DRIVER')
 const isFinance = computed(() => user.value.role === 'FINANCE')
+const canManageWelder = computed(() =>
+  ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER'].includes(user.value.role)
+)
 const boundVehicleId = computed(() => user.value.vehicle_id || null)
 
 const tabs = computed(() => {
   const role = user.value.role
   const canReimburse = ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'].includes(role)
   const canProject = ['ADMIN', 'PROJECT_MANAGER', 'FINANCE'].includes(role)
+  const canWelder = ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'].includes(role)
   const items = [
     { key: 'mileage', label: '里程', icon: Van },
     { key: 'maintenance', label: '维保', icon: Tools },
@@ -733,6 +939,10 @@ const tabs = computed(() => {
   }
   if (canProject) {
     items.push({ key: 'project', label: '项目', icon: FolderOpened })
+  }
+  if (canWelder) {
+    items.push({ key: 'welder', label: '焊机', icon: Aim })
+    items.push({ key: 'inspection', label: '巡检', icon: Operation })
   }
   if (role === 'ADMIN') {
     items.push({ key: 'users', label: '用户', icon: User })
@@ -746,6 +956,8 @@ const maintenanceRows = ref([])
 const violationRows = ref([])
 const fuelRows = ref([])
 const reimbRows = ref([])
+const welders = ref([])
+const inspectionRows = ref([])
 const projects = ref([])
 const users = ref([])
 const editingUserId = ref(null)
@@ -816,6 +1028,30 @@ const fuelForm = reactive({
   remark: null,
 })
 
+const welderForm = reactive({
+  id: null,
+  welder_code: '',
+  welder_no: '',
+  location: '',
+  project_id: null,
+  welder_manager: '',
+  status: 'ONLINE',
+  remark: '',
+})
+
+const inspectionForm = reactive({
+  id: null,
+  welder_id: null,
+  location: '',
+  inspection_date: nowText(),
+  inspection_type: 'MONTHLY',
+  completed: false,
+  attachment_url: '',
+  operator_name: user.value.real_name || '',
+  device_status: 'NORMAL',
+  remark: '',
+})
+
 const reimbForm = reactive({
   reimbursement_month: '',
   vehicle_id: null,
@@ -869,6 +1105,21 @@ function roleLabelFor(role) {
   return map[role] || role
 }
 
+function welderStatusLabel(status) {
+  const map = { ONLINE: '在线', OFFLINE: '离线', FAULT: '故障' }
+  return map[status] || status
+}
+
+function welderStatusTag(status) {
+  const map = { ONLINE: 'success', OFFLINE: 'info', FAULT: 'danger' }
+  return map[status] || ''
+}
+
+function inspectionTypeLabel(type) {
+  const map = { MONTHLY: '月检', WEEKLY: '周检', DAILY: '日检' }
+  return map[type] || type
+}
+
 function todayText() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -887,6 +1138,8 @@ async function loadAll() {
     maintenanceRes,
     violationRes,
     fuelRes,
+    welderRes,
+    inspectionRes,
     projectRes,
     reimbRes,
     userRes,
@@ -897,6 +1150,8 @@ async function loadAll() {
       request.get('/maintenances'),
       request.get('/violations'),
       request.get('/fuels'),
+      request.get('/welders'),
+      request.get('/welder-inspections'),
       request.get('/projects'),
       request.get('/reimbursements'),
       request.get('/users'),
@@ -935,6 +1190,14 @@ async function loadAll() {
   if (fuelRes.status === 'fulfilled') {
     const data = unwrap(fuelRes.value)
     fuelRows.value = Array.isArray(data) ? data : []
+  }
+  if (welderRes.status === 'fulfilled') {
+    const data = unwrap(welderRes.value)
+    welders.value = Array.isArray(data) ? data : []
+  }
+  if (inspectionRes.status === 'fulfilled') {
+    const data = unwrap(inspectionRes.value)
+    inspectionRows.value = Array.isArray(data) ? data : []
   }
   if (projectRes.status === 'fulfilled') {
     const data = unwrap(projectRes.value)
@@ -995,6 +1258,173 @@ async function saveOut() {
     console.error('出车失败：', error)
   } finally {
     saving.value = false
+  }
+}
+
+function handleWelderProjectChange(projectId) {
+  const project = projects.value.find((item) => item.id === projectId)
+  if (project) {
+    welderForm.location = project.location || ''
+  }
+}
+
+function resetWelderForm() {
+  Object.assign(welderForm, {
+    id: null,
+    welder_code: '',
+    welder_no: '',
+    location: '',
+    project_id: null,
+    welder_manager: '',
+    status: 'ONLINE',
+    remark: '',
+  })
+}
+
+function editWelder(row) {
+  Object.assign(welderForm, {
+    id: row.id,
+    welder_code: row.welder_code || '',
+    welder_no: row.welder_no || '',
+    location: row.location || '',
+    project_id: row.project_id,
+    welder_manager: row.welder_manager || '',
+    status: row.status,
+    remark: row.remark || '',
+  })
+}
+
+async function saveWelder() {
+  if (!welderForm.welder_no) {
+    ElMessage.warning('请输入焊机编号')
+    return
+  }
+  saving.value = true
+  try {
+    const payload = {
+      welder_code: welderForm.welder_code,
+      welder_no: welderForm.welder_no,
+      location: welderForm.location || null,
+      project_id: welderForm.project_id,
+      welder_manager: welderForm.welder_manager || null,
+      status: welderForm.status,
+      remark: welderForm.remark || null,
+    }
+    if (welderForm.id) {
+      await request.put(`/welders/${welderForm.id}`, payload)
+      ElMessage.success('焊机修改成功')
+    } else {
+      await request.post('/welders', payload)
+      ElMessage.success('焊机创建成功')
+    }
+    resetWelderForm()
+    await loadAll()
+  } catch (error) {
+    console.error('保存焊机失败：', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+function handleInspectionWelderChange(welderId) {
+  const welder = welders.value.find((item) => item.id === welderId)
+  if (welder) {
+    inspectionForm.location = welder.location || ''
+    if (!inspectionForm.operator_name) {
+      inspectionForm.operator_name = welder.welder_manager || ''
+    }
+  }
+}
+
+function resetInspectionForm() {
+  Object.assign(inspectionForm, {
+    id: null,
+    welder_id: null,
+    location: '',
+    inspection_date: nowText(),
+    inspection_type: 'MONTHLY',
+    completed: false,
+    attachment_url: '',
+    operator_name: user.value.real_name || '',
+    device_status: 'NORMAL',
+    remark: '',
+  })
+}
+
+function editInspection(row) {
+  Object.assign(inspectionForm, {
+    id: row.id,
+    welder_id: row.welder_id,
+    location: row.location || '',
+    inspection_date: row.inspection_date,
+    inspection_type: row.inspection_type,
+    completed: Boolean(row.completed),
+    attachment_url: row.attachment_url || '',
+    operator_name: row.operator_name || '',
+    device_status: row.device_status,
+    remark: row.remark || '',
+  })
+}
+
+async function saveInspection() {
+  if (!inspectionForm.welder_id || !inspectionForm.inspection_date) {
+    ElMessage.warning('请选择焊机和巡检日期')
+    return
+  }
+  saving.value = true
+  try {
+    const payload = {
+      welder_id: inspectionForm.welder_id,
+      location: inspectionForm.location || null,
+      inspection_date: inspectionForm.inspection_date,
+      inspection_type: inspectionForm.inspection_type,
+      completed: inspectionForm.completed,
+      attachment_url: inspectionForm.attachment_url || null,
+      operator_name: inspectionForm.operator_name || null,
+      device_status: inspectionForm.device_status,
+      remark: inspectionForm.remark || null,
+    }
+    if (inspectionForm.id) {
+      await request.put(`/welder-inspections/${inspectionForm.id}`, payload)
+      ElMessage.success('巡检单修改成功')
+    } else {
+      await request.post('/welder-inspections', payload)
+      ElMessage.success('巡检单创建成功')
+    }
+    resetInspectionForm()
+    await loadAll()
+  } catch (error) {
+    console.error('保存巡检单失败：', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function repairInspection(row) {
+  try {
+    const result = await ElMessageBox.prompt(
+      '请输入维修说明',
+      '维修说明',
+      {
+        inputType: 'textarea',
+        inputPlaceholder: '维修说明提交后自动解除故障状态',
+        inputValidator: (value) => {
+          if (!value || !String(value).trim()) {
+            return '请输入维修说明'
+          }
+          return true
+        },
+      }
+    )
+    await request.post(`/welder-inspections/${row.id}/repair`, {
+      repair_note: result.value,
+    })
+    ElMessage.success('维修说明已提交，故障状态已解除')
+    await loadAll()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('提交维修说明失败：', error)
+    }
   }
 }
 
@@ -1557,6 +1987,14 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .item-amount {
