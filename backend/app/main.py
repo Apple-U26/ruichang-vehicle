@@ -90,7 +90,7 @@ ensure_column("project_info", "manager_user_id", "BIGINT NULL")
 ensure_column_type("vehicle_mileage", "trip_date", "DATETIME NULL")
 ensure_column("vehicle_mileage", "close_time", "DATETIME NULL")
 
-os.makedirs(settings.upload_dir, exist_ok=True)
+os.makedirs(settings.upload_path, exist_ok=True)
 
 FRONTEND_DIST = (
     Path(__file__).resolve().parent.parent.parent
@@ -121,7 +121,7 @@ app.add_middleware(
 
 app.mount(
     "/uploads",
-    StaticFiles(directory=settings.upload_dir),
+    StaticFiles(directory=str(settings.upload_path)),
     name="uploads"
 )
 
@@ -575,7 +575,7 @@ async def upload_file(
         raise HTTPException(status_code=400, detail="不支持该文件类型")
 
     filename = f"{uuid4().hex}{extension}"
-    path = os.path.join(settings.upload_dir, filename)
+    path = settings.upload_path / filename
 
     content = await file.read()
 

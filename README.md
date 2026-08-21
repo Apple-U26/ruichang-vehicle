@@ -29,6 +29,16 @@ bash scripts/server-deploy.sh
 
 服务器脚本会自动 `git pull`、安装依赖、构建前端、初始化数据库并重启服务。
 
+## 图片同步
+
+Git 不会同步 `backend/uploads` 里的照片。服务器上已有照片缺失时，在本地双击 `一键同步图片到服务器.bat`，或执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\sync-uploads.ps1 -Server ubuntu@你的服务器
+```
+
+脚本会把本地 `backend/uploads` 下的全部图片上传到服务器，并自动创建远程目录。
+
 ## 手机登录
 
 1. 电脑和手机连接同一个 Wi-Fi/局域网；
