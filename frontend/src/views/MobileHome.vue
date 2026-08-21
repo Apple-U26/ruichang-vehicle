@@ -2,7 +2,7 @@
   <div class="mobile-app">
     <header class="mobile-header">
       <div>
-        <div class="app-title">瑞昌车辆管理</div>
+        <div class="app-title">车辆管理</div>
         <div class="user-line">
           {{ user.real_name }} · {{ roleLabel }}
           <template v-if="user.plate_no"> · {{ user.plate_no }}</template>

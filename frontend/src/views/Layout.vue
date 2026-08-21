@@ -3,7 +3,7 @@
     <el-aside width="220px">
       <div class="logo">
         <span class="logo-mark">瑞</span>
-        车辆管理系统
+        车辆管理
       </div>
 
       <el-menu
@@ -29,7 +29,7 @@
 
     <el-container>
       <el-header class="app-header">
-        <span class="header-title">江西瑞昌车辆管理系统</span>
+        <span class="header-title">车辆管理</span>
 
         <div class="header-actions">
           <span class="user-name">{{ user.real_name }}</span>

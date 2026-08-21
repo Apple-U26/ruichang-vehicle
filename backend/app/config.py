@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    app_name: str = "江西瑞昌车辆管理系统"
+    app_name: str = "车辆管理"
     database_url: str
     jwt_secret: str
     jwt_expire_minutes: int = 43200

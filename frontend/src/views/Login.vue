@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <el-card class="login-card">
-      <h2>江西瑞昌车辆管理系统</h2>
+      <h2>车辆管理</h2>
       <p class="sub-title">一期基础版</p>
 
       <el-form
