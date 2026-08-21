@@ -53,7 +53,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\sync-uploads.ps1
 云端访问慢时，优先使用 `deploy/nginx-ruichang-vehicle.conf` 的 Nginx 配置：
 
 - 开启 gzip 压缩；
-- `/assets/` 静态资源由 Nginx 直接读取并缓存 30 天；
+- `/assets/` 静态资源加浏览器缓存 30 天；
 - `/uploads/`、`/api/` 继续代理到后端。
 
 使用方法见 `docs/腾讯云部署教程.md` 第 9.1 节。
