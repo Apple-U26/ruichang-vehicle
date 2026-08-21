@@ -98,6 +98,7 @@
               <strong>{{ row.plate_no }}</strong>
               <span>{{ row.trip_date }} · 出车 {{ row.out_mileage }} km</span>
             </div>
+            <AttachmentPreview :url="row.out_photo" />
             <el-button type="success" size="small" @click="openClose(row)">
               收车
             </el-button>
@@ -112,6 +113,7 @@
               <strong>{{ row.plate_no }}</strong>
               <span>{{ row.trip_date }} · {{ row.distance }} km · {{ row.status === 'CLOSED' ? '已收车' : '出车中' }}</span>
             </div>
+            <AttachmentPreview :url="[row.out_photo, row.in_photo].filter(Boolean).join(',')" />
           </div>
         </section>
       </template>
@@ -204,6 +206,7 @@
               <strong>{{ row.plate_no }}</strong>
               <span>{{ row.maintenance_date }} · {{ row.items }}</span>
             </div>
+            <AttachmentPreview :url="row.attachment_url" />
             <span class="item-amount">¥ {{ row.amount }}</span>
           </div>
         </section>
@@ -281,6 +284,7 @@
               <strong>{{ row.plate_no }}</strong>
               <span>{{ row.violation_date }} · {{ row.violation_type || '违章' }}</span>
             </div>
+            <AttachmentPreview :url="row.attachment_url" />
             <span class="item-amount">¥ {{ row.fine_amount }}</span>
           </div>
         </section>
@@ -375,6 +379,7 @@
               <strong>{{ row.plate_no }}</strong>
               <span>{{ row.fuel_date }} · {{ row.liters }} 升</span>
             </div>
+            <AttachmentPreview :url="row.attachment_url" />
             <span class="item-amount">¥ {{ row.total_amount }}</span>
           </div>
         </section>
@@ -683,6 +688,7 @@ import {
 } from '@element-plus/icons-vue'
 import request from '../api/request'
 import PhotoUpload from '../components/PhotoUpload.vue'
+import AttachmentPreview from '../components/AttachmentPreview.vue'
 
 const router = useRouter()
 const activeTab = ref('mileage')
