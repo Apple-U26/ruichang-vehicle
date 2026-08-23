@@ -1297,6 +1297,7 @@ def _import_welders(
     updated = 0
     max_welder_id = db.scalar(select(func.max(Welder.id))) or 0
     seen_welder_nos = set()
+    used_codes = set()
     for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
         welder_no = str(_cell(row, headers, "welder_no") or "").strip()
         if not welder_no:
@@ -1325,16 +1326,29 @@ def _import_welders(
             select(Welder).where(Welder.welder_no == welder_no)
         )
         if welder is None:
-            if not welder_code:
-                max_welder_id += 1
-                welder_code = f"HJ-{max_welder_id:06d}"
-                while db.scalar(
+            if welder_code:
+                owner = db.scalar(
                     select(Welder).where(
                         Welder.welder_code == welder_code
                     )
-                ):
+                )
+                if owner is not None or welder_code in used_codes:
+                    welder_code = ""
+            if not welder_code:
+                while True:
                     max_welder_id += 1
-                    welder_code = f"HJ-{max_welder_id:06d}"
+                    candidate = f"HJ-{max_welder_id:06d}"
+                    if (
+                        candidate not in used_codes
+                        and not db.scalar(
+                            select(Welder).where(
+                                Welder.welder_code == candidate
+                            )
+                        )
+                    ):
+                        welder_code = candidate
+                        break
+            used_codes.add(welder_code)
             welder = Welder(
                 welder_code=welder_code,
                 welder_no=welder_no,
@@ -1357,7 +1371,15 @@ def _import_welders(
             created += 1
         else:
             if welder_code:
-                welder.welder_code = welder_code
+                owner = db.scalar(
+                    select(Welder).where(
+                        Welder.welder_code == welder_code,
+                        Welder.id != welder.id,
+                    )
+                )
+                if owner is None:
+                    welder.welder_code = welder_code
+                    used_codes.add(welder_code)
             if project:
                 welder.project_id = project.id
             location = str(
