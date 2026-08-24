@@ -1389,6 +1389,7 @@ def maintenance_list(
         }
         for row, plate_no in rows
     ]
+    return items
 
 
 @app.post("/api/maintenances")
