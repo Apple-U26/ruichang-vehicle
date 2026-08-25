@@ -72,7 +72,9 @@
           href="https://beian.mps.gov.cn/#/query/webSearch?code=12011402001763"
           target="_blank"
           rel="noopener"
+          class="police-link"
         >
+          <img src="/police-badge.png" alt="公安备案" class="police-icon" />
           津公网安备12011402001763号
         </a>
       </el-footer>
@@ -395,5 +397,17 @@ const logout = () => {
 .footer-sep {
   margin: 0 8px;
   color: #c0c8d4;
+}
+
+.police-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.police-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  vertical-align: middle;
 }
 </style>
