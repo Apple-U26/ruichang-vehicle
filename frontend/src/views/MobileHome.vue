@@ -844,6 +844,12 @@
       </template>
     </main>
 
+    <footer class="mobile-footer">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
+        津ICP备2026011740号-1
+      </a>
+    </footer>
+
     <el-dialog
       v-model="closeVisible"
       title="收车登记"
@@ -1914,6 +1920,19 @@ onMounted(() => {
 .mobile-content {
   padding: 12px;
   padding-bottom: 40px;
+}
+
+.mobile-footer {
+  padding: 10px 12px;
+  text-align: center;
+  border-top: 1px solid #f0f1f3;
+  background: #fff;
+}
+
+.mobile-footer a {
+  color: #8a94a6;
+  font-size: 12px;
+  text-decoration: none;
 }
 
 .form-section,

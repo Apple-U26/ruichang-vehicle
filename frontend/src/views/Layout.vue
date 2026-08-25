@@ -63,6 +63,11 @@
       <el-main class="app-main">
         <router-view />
       </el-main>
+      <el-footer class="app-footer">
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
+          津ICP备2026011740号-1
+        </a>
+      </el-footer>
     </el-container>
 
     <el-dialog
@@ -361,5 +366,21 @@ const logout = () => {
 .app-main {
   background: #f3f5f8;
   padding: 18px;
+}
+
+.app-footer {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.app-footer a {
+  color: #5f6b7a;
+  text-decoration: none;
 }
 </style>

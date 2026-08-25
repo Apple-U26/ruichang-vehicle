@@ -40,6 +40,11 @@
         </el-button>
       </el-form>
     </el-card>
+    <p class="icp-line">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
+        津ICP备2026011740号-1
+      </a>
+    </p>
   </div>
 </template>
 
@@ -121,6 +126,17 @@ async function handleLogin() {
 .login-card {
   width: 420px;
   padding: 25px;
+}
+
+.icp-line {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.icp-line a {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  text-decoration: none;
 }
 
 h2 {
