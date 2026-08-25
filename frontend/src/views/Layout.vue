@@ -67,6 +67,14 @@
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
           津ICP备2026011740号-1
         </a>
+        <span class="footer-sep">|</span>
+        <a
+          href="https://beian.mps.gov.cn/#/query/webSearch?code=12011402001763"
+          target="_blank"
+          rel="noopener"
+        >
+          津公网安备12011402001763号
+        </a>
       </el-footer>
     </el-container>
 
@@ -382,5 +390,10 @@ const logout = () => {
 .app-footer a {
   color: #5f6b7a;
   text-decoration: none;
+}
+
+.footer-sep {
+  margin: 0 8px;
+  color: #c0c8d4;
 }
 </style>

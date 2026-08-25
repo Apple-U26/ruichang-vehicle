@@ -44,6 +44,14 @@
       <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
         津ICP备2026011740号-1
       </a>
+      <span class="icp-sep">|</span>
+      <a
+        href="https://beian.mps.gov.cn/#/query/webSearch?code=12011402001763"
+        target="_blank"
+        rel="noopener"
+      >
+        津公网安备12011402001763号
+      </a>
     </p>
   </div>
 </template>
@@ -137,6 +145,12 @@ async function handleLogin() {
   color: rgba(255, 255, 255, 0.85);
   font-size: 12px;
   text-decoration: none;
+}
+
+.icp-sep {
+  margin: 0 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
 }
 
 h2 {
