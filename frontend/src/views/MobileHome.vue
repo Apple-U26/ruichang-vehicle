@@ -445,6 +445,7 @@
                   <el-option label="路桥费" value="TOLL" />
                   <el-option label="停车费" value="PARKING" />
                   <el-option label="其他" value="OTHER" />
+                  <el-option label="里程补助" value="MILEAGE_ALLOWANCE" />
                 </el-select>
               </el-form-item>
               <el-form-item label="日期">
@@ -476,6 +477,52 @@
                 @click="removeReimbDetail(index)"
               >
                 删除该费用
+              </el-button>
+            </div>
+
+            <div class="mobile-source-row">
+              <el-select
+                v-model="selectedFuelId"
+                placeholder="选择油费记录"
+                filterable
+                style="flex: 1"
+              >
+                <el-option
+                  v-for="item in fuelCandidates"
+                  :key="item.id"
+                  :label="`${item.fuel_date} · ${item.liters} 升 · ¥${item.total_amount}`"
+                  :value="item.id"
+                />
+              </el-select>
+              <el-button
+                type="success"
+                :disabled="!selectedFuelId"
+                @click="addMobileFuel"
+              >
+                添加油费
+              </el-button>
+            </div>
+
+            <div class="mobile-source-row">
+              <el-select
+                v-model="selectedMaintenanceId"
+                placeholder="选择维保记录"
+                filterable
+                style="flex: 1"
+              >
+                <el-option
+                  v-for="item in maintenanceCandidates"
+                  :key="item.id"
+                  :label="`${item.maintenance_date} · ${item.items || '维保记录'} · ¥${item.amount}`"
+                  :value="item.id"
+                />
+              </el-select>
+              <el-button
+                type="success"
+                :disabled="!selectedMaintenanceId"
+                @click="addMobileMaintenance"
+              >
+                添加维保
               </el-button>
             </div>
 
@@ -978,7 +1025,11 @@ const projects = ref([])
 const users = ref([])
 const editingUserId = ref(null)
 const mileageCandidates = ref([])
+const fuelCandidates = ref([])
+const maintenanceCandidates = ref([])
 const selectedMileageId = ref(null)
+const selectedFuelId = ref(null)
+const selectedMaintenanceId = ref(null)
 
 const activeVehicles = computed(() =>
   vehicles.value.filter((item) => item.status === 'ACTIVE')
@@ -1584,8 +1635,14 @@ function addReimbDetail() {
     expense_type: 'FUEL',
     expense_date: '',
     amount: null,
+    related_mileage: null,
+    invoice_no: '',
     description: '',
     attachment_url: '',
+    is_linked: false,
+    source_type: null,
+    source_id: null,
+    source_label: '',
   })
 }
 
@@ -1596,20 +1653,37 @@ function removeReimbDetail(index) {
 async function loadMileageCandidates() {
   if (!reimbForm.vehicle_id || !reimbForm.reimbursement_month) {
     mileageCandidates.value = []
+    fuelCandidates.value = []
+    maintenanceCandidates.value = []
     return
   }
-  try {
-    const res = await request.get('/mileages', {
-      params: {
-        vehicle_id: reimbForm.vehicle_id,
-        month: reimbForm.reimbursement_month,
-        exclude_used: true,
-      },
-    })
-    const data = unwrap(res)
+  const params = {
+    vehicle_id: reimbForm.vehicle_id,
+    month: reimbForm.reimbursement_month,
+    exclude_used: true,
+  }
+  const [mileageRes, fuelRes, maintenanceRes] = await Promise.allSettled([
+    request.get('/mileages', { params }),
+    request.get('/fuels', { params }),
+    request.get('/maintenances', { params }),
+  ])
+  if (mileageRes.status === 'fulfilled') {
+    const data = unwrap(mileageRes.value)
     mileageCandidates.value = Array.isArray(data) ? data : []
-  } catch (error) {
+  } else {
     mileageCandidates.value = []
+  }
+  if (fuelRes.status === 'fulfilled') {
+    const data = unwrap(fuelRes.value)
+    fuelCandidates.value = Array.isArray(data) ? data : []
+  } else {
+    fuelCandidates.value = []
+  }
+  if (maintenanceRes.status === 'fulfilled') {
+    const data = unwrap(maintenanceRes.value)
+    maintenanceCandidates.value = Array.isArray(data) ? data : []
+  } else {
+    maintenanceCandidates.value = []
   }
 }
 
@@ -1633,6 +1707,48 @@ function addMobileMileage() {
     source_label: `里程 ${source.trip_date}`,
   })
   selectedMileageId.value = null
+}
+
+function addMobileFuel() {
+  const source = fuelCandidates.value.find(
+    (item) => item.id === selectedFuelId.value
+  )
+  if (!source) return
+  reimbForm.details.push({
+    expense_type: 'FUEL',
+    expense_date: source.fuel_date,
+    amount: Number(source.total_amount),
+    related_mileage: source.mileage,
+    invoice_no: source.invoice_no || '',
+    description: `油费记录 ${source.fuel_date}`,
+    attachment_url: source.attachment_url || '',
+    is_linked: true,
+    source_type: 'FUEL',
+    source_id: source.id,
+    source_label: `油费 ${source.fuel_date}`,
+  })
+  selectedFuelId.value = null
+}
+
+function addMobileMaintenance() {
+  const source = maintenanceCandidates.value.find(
+    (item) => item.id === selectedMaintenanceId.value
+  )
+  if (!source) return
+  reimbForm.details.push({
+    expense_type: 'MAINTENANCE',
+    expense_date: source.maintenance_date,
+    amount: Number(source.amount),
+    related_mileage: source.current_mileage,
+    invoice_no: '',
+    description: source.items || '维保记录',
+    attachment_url: source.attachment_url || '',
+    is_linked: true,
+    source_type: 'MAINTENANCE',
+    source_id: source.id,
+    source_label: `维保 ${source.maintenance_date}`,
+  })
+  selectedMaintenanceId.value = null
 }
 
 async function saveReimbursement() {
@@ -1834,6 +1950,8 @@ function resetFuelForm() {
 
 function resetReimbForm() {
   selectedMileageId.value = null
+  selectedFuelId.value = null
+  selectedMaintenanceId.value = null
   Object.assign(reimbForm, {
     reimbursement_month: '',
     vehicle_id: boundVehicleId.value || null,
