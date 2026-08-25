@@ -29,6 +29,12 @@
           />
         </el-form-item>
 
+        <el-form-item>
+          <el-checkbox v-model="rememberPassword">
+            记住账号密码
+          </el-checkbox>
+        </el-form-item>
+
         <el-button
           type="primary"
           size="large"
@@ -73,6 +79,35 @@ const form = reactive({
   password: ''
 })
 
+const rememberPassword = ref(false)
+const savedCredentials = localStorage.getItem('rememberedCredentials')
+if (savedCredentials) {
+  try {
+    const saved = JSON.parse(savedCredentials)
+    if (saved && saved.username) {
+      form.username = saved.username
+      form.password = saved.password || ''
+      rememberPassword.value = true
+    }
+  } catch (error) {
+    localStorage.removeItem('rememberedCredentials')
+  }
+}
+
+function rememberCredentials() {
+  if (rememberPassword.value) {
+    localStorage.setItem(
+      'rememberedCredentials',
+      JSON.stringify({
+        username: form.username,
+        password: form.password,
+      })
+    )
+  } else {
+    localStorage.removeItem('rememberedCredentials')
+  }
+}
+
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -98,6 +133,7 @@ async function handleLogin() {
       const userInfo = data.user || {}
       localStorage.setItem('user', JSON.stringify(userInfo))
       localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      rememberCredentials()
       router.push(
         route.query.redirect ||
           (window.innerWidth < 768 ? '/mobile' : '/dashboard')
@@ -107,6 +143,7 @@ async function handleLogin() {
       const userInfo = data.user || {}
       localStorage.setItem('user', JSON.stringify(userInfo))
       localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      rememberCredentials()
       router.push(
         route.query.redirect ||
           (window.innerWidth < 768 ? '/mobile' : '/dashboard')
