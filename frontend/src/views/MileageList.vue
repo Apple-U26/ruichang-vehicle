@@ -99,6 +99,15 @@
           </el-button>
           <el-button
             v-if="isAdmin"
+            type="primary"
+            link
+            size="small"
+            @click="openEdit(row)"
+          >
+            编辑
+          </el-button>
+          <el-button
+            v-if="isAdmin"
             type="danger"
             link
             size="small"
@@ -191,6 +200,125 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="editVisible" title="编辑里程记录" width="680px">
+      <el-form ref="editFormRef" :model="editForm" label-width="100px">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="车辆">
+              <el-select v-model="editForm.vehicle_id" filterable style="width: 100%">
+                <el-option
+                  v-for="vehicle in vehicles"
+                  :key="vehicle.id"
+                  :label="`${vehicle.plate_no}（${vehicle.vehicle_code}）`"
+                  :value="vehicle.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="出车时间">
+              <el-date-picker
+                v-model="editForm.trip_date"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="收车时间">
+              <el-date-picker
+                v-model="editForm.close_time"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-select v-model="editForm.status" style="width: 100%">
+                <el-option label="出车中" value="OUT" />
+                <el-option label="已收车" value="CLOSED" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="出车里程">
+              <el-input-number
+                v-model="editForm.out_mileage"
+                :min="0"
+                :precision="0"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="收车里程">
+              <el-input-number
+                v-model="editForm.in_mileage"
+                :min="0"
+                :precision="0"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="驾驶人">
+              <el-input v-model="editForm.driver_name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="异常">
+              <el-switch v-model="editForm.abnormal" active-text="异常" inactive-text="正常" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="出发地">
+              <el-input v-model="editForm.departure" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="目的地">
+              <el-input v-model="editForm.destination" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="异常原因">
+              <el-input v-model="editForm.abnormal_reason" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="用车事由">
+              <el-input v-model="editForm.purpose" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="出车照片">
+              <PhotoUpload v-model="editForm.out_photo" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="收车照片">
+              <PhotoUpload v-model="editForm.in_photo" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="备注">
+              <el-input v-model="editForm.remark" type="textarea" :rows="2" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveEdit">
+          保存修改
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -223,9 +351,11 @@ const saving = ref(false)
 
 const outVisible = ref(false)
 const closeVisible = ref(false)
+const editVisible = ref(false)
 const closeRecordId = ref(null)
 const outFormRef = ref()
 const closeFormRef = ref()
+const editFormRef = ref()
 
 const outForm = reactive({
   vehicle_id: null,
@@ -243,6 +373,26 @@ const closeForm = reactive({
   out_mileage: 0,
   in_mileage: 0,
   in_photo: null,
+})
+
+const editForm = reactive({
+  id: null,
+  vehicle_id: null,
+  trip_date: '',
+  close_time: null,
+  out_mileage: 0,
+  in_mileage: null,
+  distance: 0,
+  driver_name: '',
+  departure: '',
+  destination: '',
+  purpose: '',
+  out_photo: '',
+  in_photo: '',
+  status: 'OUT',
+  abnormal: false,
+  abnormal_reason: '',
+  remark: '',
 })
 
 const outRules = {
@@ -389,6 +539,68 @@ async function saveClose() {
     await Promise.all([loadData(), loadVehicles()])
   } catch (error) {
     console.error('收车失败：', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+function openEdit(row) {
+  Object.assign(editForm, {
+    id: row.id,
+    vehicle_id: row.vehicle_id,
+    trip_date: row.trip_date,
+    close_time: row.close_time || null,
+    out_mileage: Number(row.out_mileage || 0),
+    in_mileage: row.in_mileage == null ? null : Number(row.in_mileage),
+    distance: Number(row.distance || 0),
+    driver_name: row.driver_name || '',
+    departure: row.departure || '',
+    destination: row.destination || '',
+    purpose: row.purpose || '',
+    out_photo: row.out_photo || '',
+    in_photo: row.in_photo || '',
+    status: row.status,
+    abnormal: Boolean(row.abnormal),
+    abnormal_reason: row.abnormal_reason || '',
+    remark: row.remark || '',
+  })
+  editVisible.value = true
+}
+
+async function saveEdit() {
+  if (!editForm.vehicle_id || !editForm.trip_date) {
+    ElMessage.warning('请选择车辆和出车时间')
+    return
+  }
+  if (!editForm.out_photo) {
+    ElMessage.warning('请上传出车照片')
+    return
+  }
+  saving.value = true
+  try {
+    await request.put(`/mileages/${editForm.id}`, {
+      vehicle_id: editForm.vehicle_id,
+      trip_date: editForm.trip_date,
+      close_time: editForm.close_time || null,
+      out_mileage: editForm.out_mileage,
+      in_mileage: editForm.in_mileage,
+      distance: editForm.distance,
+      driver_name: editForm.driver_name || null,
+      departure: editForm.departure || null,
+      destination: editForm.destination || null,
+      purpose: editForm.purpose || null,
+      out_photo: editForm.out_photo,
+      in_photo: editForm.in_photo || null,
+      status: editForm.status,
+      abnormal: editForm.abnormal,
+      abnormal_reason: editForm.abnormal_reason || null,
+      remark: editForm.remark || null,
+    })
+    ElMessage.success('里程记录修改成功')
+    editVisible.value = false
+    await Promise.all([loadData(), loadVehicles()])
+  } catch (error) {
+    console.error('修改里程记录失败：', error)
   } finally {
     saving.value = false
   }

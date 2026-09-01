@@ -92,6 +92,25 @@ class MileageCloseIn(BaseModel):
     in_photo: str = Field(min_length=1, max_length=500)
 
 
+class MileageUpdateIn(BaseModel):
+    vehicle_id: int = Field(gt=0)
+    trip_date: datetime
+    close_time: datetime | None = None
+    out_mileage: Decimal = Field(ge=0)
+    in_mileage: Decimal | None = Field(default=None, ge=0)
+    distance: Decimal = Field(default=0, ge=0)
+    driver_name: str | None = Field(default=None, max_length=50)
+    departure: str | None = Field(default=None, max_length=100)
+    destination: str | None = Field(default=None, max_length=100)
+    purpose: str | None = Field(default=None, max_length=255)
+    out_photo: str = Field(min_length=1, max_length=500)
+    in_photo: str | None = Field(default=None, max_length=500)
+    status: Literal["OUT", "CLOSED"]
+    abnormal: bool = False
+    abnormal_reason: str | None = Field(default=None, max_length=255)
+    remark: str | None = None
+
+
 class MaintenanceIn(BaseModel):
     vehicle_id: int = Field(gt=0)
     maintenance_date: date

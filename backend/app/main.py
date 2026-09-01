@@ -56,6 +56,7 @@ from app.schemas import (
     LoginIn,
     MileageOutIn,
     MileageCloseIn,
+    MileageUpdateIn,
     MaintenanceIn,
     ViolationIn,
     FuelIn,
@@ -1226,6 +1227,50 @@ def mileage_out(
         "abnormal": row.abnormal,
         "message": "出车登记成功"
     }
+
+
+@app.put("/api/mileages/{record_id}")
+def mileage_update(
+    record_id: int,
+    data: MileageUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("ADMIN")),
+):
+    row = db.get(MileageRecord, record_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="里程记录不存在")
+
+    row.vehicle_id = data.vehicle_id
+    row.trip_date = data.trip_date
+    row.close_time = data.close_time
+    row.out_mileage = data.out_mileage
+    row.in_mileage = data.in_mileage
+    if (
+        data.in_mileage is not None
+        and data.in_mileage >= data.out_mileage
+    ):
+        row.distance = data.in_mileage - data.out_mileage
+    else:
+        row.distance = data.distance
+    row.driver_name = data.driver_name
+    row.departure = data.departure
+    row.destination = data.destination
+    row.purpose = data.purpose
+    row.out_photo = data.out_photo
+    row.in_photo = data.in_photo
+    row.status = data.status
+    row.abnormal = data.abnormal
+    row.abnormal_reason = data.abnormal_reason
+    row.remark = data.remark
+
+    if data.in_mileage is not None and data.status == "CLOSED":
+        vehicle = db.get(Vehicle, data.vehicle_id)
+        if vehicle and data.in_mileage > vehicle.current_mileage:
+            vehicle.current_mileage = data.in_mileage
+
+    db.commit()
+    db.refresh(row)
+    return {"message": "里程记录修改成功"}
 
 
 @app.put("/api/mileages/{record_id}/close")
