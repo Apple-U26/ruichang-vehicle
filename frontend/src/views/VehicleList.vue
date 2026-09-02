@@ -267,7 +267,7 @@ const isAdmin = userRole === 'ADMIN'
 function canEditRow(row) {
   if (userRole === 'ADMIN') return true
   if (userRole === 'PROJECT_MANAGER') {
-    return row.project_manager_name === userRealName
+    return true
   }
   if (userRole === 'VEHICLE_MANAGER') {
     return row.vehicle_manager === userRealName

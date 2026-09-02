@@ -908,14 +908,6 @@ def vehicle_update(
 
     ensure_vehicle_manageable(user, row.vehicle_manager)
 
-    if user.role == "PROJECT_MANAGER" and not project_owned_by_user(
-        user, row.project
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="只能编辑自己项目下的车辆",
-        )
-
     row.plate_no = data.plate_no.strip().upper()
     row.project_id = data.project_id
     row.project_manager = data.project_manager
