@@ -112,7 +112,7 @@ const userRealName = userInfo.real_name || ''
 function canEditRow(row) {
   if (userRole === 'ADMIN' || userRole === 'FINANCE') return true
   if (userRole === 'PROJECT_MANAGER') {
-    return row.manager_name === userRealName
+    return true
   }
   return false
 }

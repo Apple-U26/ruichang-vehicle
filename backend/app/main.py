@@ -684,14 +684,6 @@ def project_update(
     if not row:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    if user.role == "PROJECT_MANAGER" and not project_owned_by_user(
-        user, row
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="只能编辑自己负责的项目",
-        )
-
     duplicate = db.scalar(
         select(Project).where(
             Project.name == data.name,
@@ -706,9 +698,7 @@ def project_update(
     row.location = data.location
     row.enabled = data.enabled
     row.remark = data.remark
-    if user.role == "PROJECT_MANAGER":
-        row.manager_user_id = user.id
-    elif user.role == "ADMIN" and data.manager_user_id is not None:
+    if user.role == "ADMIN" and data.manager_user_id is not None:
         if not db.get(User, data.manager_user_id):
             raise HTTPException(status_code=400, detail="负责人账号不存在")
         row.manager_user_id = data.manager_user_id
