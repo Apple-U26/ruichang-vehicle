@@ -1407,6 +1407,7 @@ def maintenance_list(
             "amount": float(row.amount),
             "service_provider": row.service_provider,
             "operator_name": row.operator_name,
+            "attachment_url": row.attachment_url,
             "next_mileage": (
                 float(row.next_mileage)
                 if row.next_mileage is not None else None
