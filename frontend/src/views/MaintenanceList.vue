@@ -60,6 +60,11 @@
       <el-table-column prop="amount" label="金额(元)" width="100" />
       <el-table-column prop="service_provider" label="服务商" width="130" />
       <el-table-column prop="operator_name" label="操作人" width="100" />
+      <el-table-column label="附件" width="90">
+        <template #default="{ row }">
+          <AttachmentPreview :url="row.attachment_url" />
+        </template>
+      </el-table-column>
       <el-table-column prop="next_mileage" label="下次里程" width="100">
         <template #default="{ row }">
           {{ row.next_mileage ?? '-' }}
@@ -226,6 +231,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus } from '@element-plus/icons-vue'
 import request from '../api/request'
+import AttachmentPreview from '../components/AttachmentPreview.vue'
 import PhotoUpload from '../components/PhotoUpload.vue'
 
 let userInfo = {}
