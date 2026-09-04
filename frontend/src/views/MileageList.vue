@@ -361,7 +361,7 @@ const outForm = reactive({
   vehicle_id: null,
   trip_date: '',
   out_mileage: 0,
-  driver_name: '',
+  driver_name: localStorage.getItem('lastDriverName') || userInfo.real_name || '',
   departure: '',
   destination: '',
   purpose: '',
@@ -445,6 +445,15 @@ watch(
   }
 )
 
+watch(
+  () => outForm.driver_name,
+  (value) => {
+    if (value && String(value).trim()) {
+      localStorage.setItem('lastDriverName', String(value).trim())
+    }
+  }
+)
+
 async function loadData() {
   loading.value = true
   try {
@@ -472,7 +481,8 @@ function openOut() {
     vehicle_id: null,
     trip_date: dateText,
     out_mileage: 0,
-    driver_name: '',
+    driver_name:
+      localStorage.getItem('lastDriverName') || userInfo.real_name || '',
     departure: '',
     destination: '',
     purpose: '',

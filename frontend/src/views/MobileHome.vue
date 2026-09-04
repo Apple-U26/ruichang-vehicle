@@ -1043,7 +1043,8 @@ const outForm = reactive({
   vehicle_id: null,
   trip_date: '',
   out_mileage: 0,
-  driver_name: '',
+  driver_name:
+    localStorage.getItem('lastDriverName') || user.value.real_name || '',
   departure: '',
   destination: '',
   purpose: '',
@@ -1294,6 +1295,15 @@ watch(
 watch(
   [() => reimbForm.vehicle_id, () => reimbForm.reimbursement_month],
   () => loadMileageCandidates()
+)
+
+watch(
+  () => outForm.driver_name,
+  (value) => {
+    if (value && String(value).trim()) {
+      localStorage.setItem('lastDriverName', String(value).trim())
+    }
+  }
 )
 
 async function saveOut() {
@@ -1896,7 +1906,8 @@ function resetOutForm() {
     vehicle_id: null,
     trip_date: nowText(),
     out_mileage: 0,
-    driver_name: user.value.real_name || '',
+    driver_name:
+      localStorage.getItem('lastDriverName') || user.value.real_name || '',
     departure: '',
     destination: '',
     purpose: '',
