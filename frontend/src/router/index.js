@@ -68,7 +68,7 @@ const routes = [
         path: 'fuels',
         component: FuelList,
         meta: {
-          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
+          roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
         },
       },
       {

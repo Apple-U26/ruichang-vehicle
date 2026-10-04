@@ -995,8 +995,10 @@ const tabs = computed(() => {
     { key: 'mileage', label: '里程', icon: Van },
     { key: 'maintenance', label: '维保', icon: Tools },
     { key: 'violation', label: '违章', icon: Warning },
-    { key: 'fuel', label: '油费', icon: Coin },
   ]
+  if (role !== 'DRIVER') {
+    items.push({ key: 'fuel', label: '油费', icon: Coin })
+  }
   if (canReimburse) {
     items.push({ key: 'reimbursement', label: '报销', icon: Money })
   }

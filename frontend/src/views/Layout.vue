@@ -211,7 +211,7 @@ const menus = computed(() => {
       path: '/fuels',
       label: '油费管理',
       icon: Coin,
-      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE', 'DRIVER'],
+      roles: ['ADMIN', 'VEHICLE_MANAGER', 'PROJECT_MANAGER', 'FINANCE'],
     },
     {
       path: '/reimbursements',

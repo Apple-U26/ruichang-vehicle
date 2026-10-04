@@ -1697,7 +1697,14 @@ def fuel_list(
     exclude_used: bool = False,
     keyword: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_roles(
+            "ADMIN",
+            "VEHICLE_MANAGER",
+            "PROJECT_MANAGER",
+            "FINANCE",
+        )
+    ),
 ):
     stmt = (
         select(FuelRecord, Vehicle.plate_no)
@@ -1770,7 +1777,6 @@ def fuel_create(
             "ADMIN",
             "VEHICLE_MANAGER",
             "PROJECT_MANAGER",
-            "DRIVER",
         )
     ),
 ):
