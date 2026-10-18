@@ -98,6 +98,9 @@ class Vehicle(Base):
     status: Mapped[str] = mapped_column(String(30), default="ACTIVE")
 
     vehicle_age: Mapped[int | None] = mapped_column(Integer)
+    compulsory_insurance_expiry: Mapped[date | None] = mapped_column(Date)
+    commercial_insurance_expiry: Mapped[date | None] = mapped_column(Date)
+    annual_inspection_expiry: Mapped[date | None] = mapped_column(Date)
     violation_info: Mapped[str | None] = mapped_column(Text)
     appearance_url: Mapped[str | None] = mapped_column(String(500))
     remark: Mapped[str | None] = mapped_column(Text)

@@ -147,6 +147,9 @@ class ExcelService:
                     "当前里程(km)": float(v.current_mileage),
                     "状态": STATUS_LABELS.get(v.status, v.status),
                     "车龄(年)": v.vehicle_age or "",
+                    "交强险到期日": v.compulsory_insurance_expiry or "",
+                    "商业险到期日": v.commercial_insurance_expiry or "",
+                    "年检到期日": v.annual_inspection_expiry or "",
                     "违章信息": v.violation_info or "",
                     "备注": v.remark or "",
                 }
@@ -721,6 +724,21 @@ FIELD_ALIASES = {
     "current_mileage": ["当前里程(km)", "当前里程"],
     "appearance_url": ["车辆外观"],
     "vehicle_age": ["车辆年限", "车龄(年)", "车龄"],
+    "compulsory_insurance_expiry": [
+        "交强险到期日",
+        "交强险期限",
+        "交强险",
+    ],
+    "commercial_insurance_expiry": [
+        "商业险到期日",
+        "商业险期限",
+        "商业险",
+    ],
+    "annual_inspection_expiry": [
+        "年检到期日",
+        "年检期限",
+        "年检",
+    ],
     "violation_info": ["违章信息", "违章情况"],
     "status": ["状态"],
     "remark": ["备注"],
@@ -887,6 +905,15 @@ def _import_vehicles(
             _cell(row, headers, "current_mileage")
         )
         vehicle_age = _parse_int(_cell(row, headers, "vehicle_age"))
+        compulsory_insurance_expiry = _parse_date(
+            _cell(row, headers, "compulsory_insurance_expiry")
+        )
+        commercial_insurance_expiry = _parse_date(
+            _cell(row, headers, "commercial_insurance_expiry")
+        )
+        annual_inspection_expiry = _parse_date(
+            _cell(row, headers, "annual_inspection_expiry")
+        )
         appearance_url = str(
             _cell(row, headers, "appearance_url") or ""
         ).strip()
@@ -916,6 +943,9 @@ def _import_vehicles(
                 current_mileage=current_mileage or initial_mileage,
                 status=status,
                 vehicle_age=vehicle_age,
+                compulsory_insurance_expiry=compulsory_insurance_expiry,
+                commercial_insurance_expiry=commercial_insurance_expiry,
+                annual_inspection_expiry=annual_inspection_expiry,
                 violation_info=violation_info or None,
                 appearance_url=appearance_url or None,
                 remark=remark or None,
@@ -939,6 +969,16 @@ def _import_vehicles(
                 vehicle.current_mileage = current_mileage
             if vehicle_age is not None:
                 vehicle.vehicle_age = vehicle_age
+            if compulsory_insurance_expiry is not None:
+                vehicle.compulsory_insurance_expiry = (
+                    compulsory_insurance_expiry
+                )
+            if commercial_insurance_expiry is not None:
+                vehicle.commercial_insurance_expiry = (
+                    commercial_insurance_expiry
+                )
+            if annual_inspection_expiry is not None:
+                vehicle.annual_inspection_expiry = annual_inspection_expiry
             if appearance_url:
                 vehicle.appearance_url = appearance_url
             if violation_info:

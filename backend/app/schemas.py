@@ -71,6 +71,9 @@ class VehicleIn(BaseModel):
     initial_mileage: Decimal = Field(default=Decimal("0"), ge=0)
     status: Literal["ACTIVE", "MAINTENANCE", "DISABLED", "RETURNED"] = "ACTIVE"
     vehicle_age: int | None = Field(default=None, ge=0)
+    compulsory_insurance_expiry: date | None = None
+    commercial_insurance_expiry: date | None = None
+    annual_inspection_expiry: date | None = None
     violation_info: str | None = None
     remark: str | None = None
 

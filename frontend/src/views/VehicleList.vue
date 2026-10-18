@@ -78,12 +78,14 @@
       border
       stripe
       class="data-table"
+      max-height="calc(100vh - 220px)"
+      scrollbar-always-on
       @selection-change="selectedRows = $event"
     >
-      <el-table-column type="selection" width="45" />
+      <el-table-column type="selection" width="45" fixed="left" />
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="vehicle_code" label="车辆编码" width="110" />
-      <el-table-column prop="plate_no" label="车牌号" width="110" />
+      <el-table-column prop="plate_no" label="车牌号" width="110" fixed="left" />
       <el-table-column prop="project_name" label="所属项目" min-width="120">
         <template #default="{ row }">
           {{ row.project_name || '-' }}
@@ -106,6 +108,38 @@
         </template>
       </el-table-column>
       <el-table-column prop="vehicle_age" label="车龄(年)" width="80" />
+      <el-table-column label="保险期限" align="center">
+        <el-table-column
+          prop="compulsory_insurance_expiry"
+          label="交强险到期日"
+          width="115"
+          align="center"
+        >
+          <template #default="{ row }">
+            {{ row.compulsory_insurance_expiry || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="commercial_insurance_expiry"
+          label="商业险到期日"
+          width="115"
+          align="center"
+        >
+          <template #default="{ row }">
+            {{ row.commercial_insurance_expiry || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="annual_inspection_expiry"
+          label="年检到期日"
+          width="105"
+          align="center"
+        >
+          <template #default="{ row }">
+            {{ row.annual_inspection_expiry || '-' }}
+          </template>
+        </el-table-column>
+      </el-table-column>
       <el-table-column label="车辆图片" width="90">
         <template #default="{ row }">
           <AttachmentPreview :url="row.appearance_url" />
@@ -128,10 +162,17 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="680px"
+      width="min(680px, calc(100vw - 32px))"
+      class="vehicle-dialog"
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="110px"
+        class="vehicle-form"
+      >
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="车牌号" prop="plate_no">
@@ -205,6 +246,27 @@
                 :max="50"
                 style="width: 100%"
               />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="保险期限">
+              <div class="insurance-expiry-grid">
+                <div
+                  v-for="field in insuranceExpiryFields"
+                  :key="field.key"
+                  class="insurance-expiry-item"
+                >
+                  <span class="insurance-expiry-label">{{ field.label }}</span>
+                  <el-date-picker
+                    v-model="formData[field.key]"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    placeholder="到期日期"
+                    clearable
+                    style="width: 100%"
+                  />
+                </div>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -309,6 +371,12 @@ const ownershipOptions = [
   { value: 'OTHER', label: '其他' },
 ]
 
+const insuranceExpiryFields = [
+  { key: 'compulsory_insurance_expiry', label: '交强险' },
+  { key: 'commercial_insurance_expiry', label: '商业险' },
+  { key: 'annual_inspection_expiry', label: '年检' },
+]
+
 const projectOptions = ref([])
 
 const formData = reactive({
@@ -321,6 +389,9 @@ const formData = reactive({
   initial_mileage: 0,
   status: 'ACTIVE',
   vehicle_age: null,
+  compulsory_insurance_expiry: null,
+  commercial_insurance_expiry: null,
+  annual_inspection_expiry: null,
   appearance_url: '',
   violation_info: '',
   remark: '',
@@ -409,6 +480,9 @@ function resetForm() {
   formData.initial_mileage = 0
   formData.status = 'ACTIVE'
   formData.vehicle_age = null
+  formData.compulsory_insurance_expiry = null
+  formData.commercial_insurance_expiry = null
+  formData.annual_inspection_expiry = null
   formData.appearance_url = ''
   formData.violation_info = ''
   formData.remark = ''
@@ -432,6 +506,9 @@ function editVehicle(row) {
     initial_mileage: Number(row.initial_mileage || 0),
     status: row.status,
     vehicle_age: row.vehicle_age,
+    compulsory_insurance_expiry: row.compulsory_insurance_expiry || null,
+    commercial_insurance_expiry: row.commercial_insurance_expiry || null,
+    annual_inspection_expiry: row.annual_inspection_expiry || null,
     appearance_url: row.appearance_url || '',
     violation_info: row.violation_info || '',
     remark: row.remark || '',
@@ -455,6 +532,9 @@ async function submitForm() {
       initial_mileage: Number(formData.initial_mileage || 0),
       status: formData.status,
       vehicle_age: formData.vehicle_age,
+      compulsory_insurance_expiry: formData.compulsory_insurance_expiry || null,
+      commercial_insurance_expiry: formData.commercial_insurance_expiry || null,
+      annual_inspection_expiry: formData.annual_inspection_expiry || null,
       appearance_url: formData.appearance_url || null,
       violation_info: formData.violation_info || null,
       remark: formData.remark || null,
@@ -561,6 +641,36 @@ onMounted(() => {
 
 .data-table {
   margin-top: 16px;
+}
+
+.insurance-expiry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.insurance-expiry-item {
+  min-width: 0;
+}
+
+.insurance-expiry-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+@media (max-width: 720px) {
+  :deep(.vehicle-form .el-col-12) {
+    max-width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .insurance-expiry-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 </style>

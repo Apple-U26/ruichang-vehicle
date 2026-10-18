@@ -16,6 +16,9 @@ def main():
     ensure_column("violation_record", "attachment_url", "VARCHAR(500)")
     ensure_column("project_info", "location", "VARCHAR(200)")
     ensure_column("project_info", "manager_user_id", "BIGINT NULL")
+    ensure_column("vehicle_info", "compulsory_insurance_expiry", "DATE NULL")
+    ensure_column("vehicle_info", "commercial_insurance_expiry", "DATE NULL")
+    ensure_column("vehicle_info", "annual_inspection_expiry", "DATE NULL")
 
     db = SessionLocal()
 

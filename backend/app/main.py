@@ -90,6 +90,9 @@ ensure_column("project_info", "location", "VARCHAR(200)")
 ensure_column("project_info", "manager_user_id", "BIGINT NULL")
 ensure_column_type("vehicle_mileage", "trip_date", "DATETIME NULL")
 ensure_column("vehicle_mileage", "close_time", "DATETIME NULL")
+ensure_column("vehicle_info", "compulsory_insurance_expiry", "DATE NULL")
+ensure_column("vehicle_info", "commercial_insurance_expiry", "DATE NULL")
+ensure_column("vehicle_info", "annual_inspection_expiry", "DATE NULL")
 
 os.makedirs(settings.upload_path, exist_ok=True)
 
@@ -146,6 +149,9 @@ def vehicle_to_dict(vehicle: Vehicle):
         "current_mileage": float(vehicle.current_mileage or 0),
         "status": vehicle.status,
         "vehicle_age": vehicle.vehicle_age,
+        "compulsory_insurance_expiry": vehicle.compulsory_insurance_expiry,
+        "commercial_insurance_expiry": vehicle.commercial_insurance_expiry,
+        "annual_inspection_expiry": vehicle.annual_inspection_expiry,
         "violation_info": vehicle.violation_info,
         "appearance_url": vehicle.appearance_url,
         "remark": vehicle.remark,
@@ -867,6 +873,9 @@ def vehicle_create(
         current_mileage=data.initial_mileage,
         status=data.status,
         vehicle_age=data.vehicle_age,
+        compulsory_insurance_expiry=data.compulsory_insurance_expiry,
+        commercial_insurance_expiry=data.commercial_insurance_expiry,
+        annual_inspection_expiry=data.annual_inspection_expiry,
         violation_info=data.violation_info,
         remark=data.remark
     )
@@ -920,6 +929,9 @@ def vehicle_update(
     row.ownership = data.ownership
     row.status = data.status
     row.vehicle_age = data.vehicle_age
+    row.compulsory_insurance_expiry = data.compulsory_insurance_expiry
+    row.commercial_insurance_expiry = data.commercial_insurance_expiry
+    row.annual_inspection_expiry = data.annual_inspection_expiry
     row.violation_info = data.violation_info
     row.remark = data.remark
     if user.role == "ADMIN":
