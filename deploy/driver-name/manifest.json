@@ -1,0 +1,18 @@
+{
+  "source_commit": "09053e2f82c0041fa73105c011562128a94e7514",
+  "sha256": "3f3fc3d9e509329741d7bf64fcaab35694c9d8a5bfb9f9faa073cc9a9a375e29",
+  "parts": 13,
+  "bytes": 438157,
+  "tests": {
+    "driver_name": 5,
+    "backend": 30
+  },
+  "assets": {
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "7ca2d67c9c3aebf50cdc8709ee8aacf8cdb8cc7ea6325ea94939caef5da1c53d",
+    "index.html": "15ea903dc8fab72215ec9a8460c17368b333db0e4f6a6452a388f62baa3ac2ad",
+    "police-badge.png": "6189a29f86e1756d1970f4446b9f836642c283c373d312dbddeb42411f1608e6",
+    "assets/index-BgxVIH8o.js": "2feec4738ca94f4e9a41130d74abaa33de3a3763398e87b7932ea156b1d0691a",
+    "assets/index-Dx0oBst_.css": "33a74d16b20cc39f8055c1992bea0c897d0480869b471b47d0b630c713fcb391"
+  }
+}
