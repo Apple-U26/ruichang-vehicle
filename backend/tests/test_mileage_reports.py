@@ -126,7 +126,7 @@ class MileageReportTests(unittest.TestCase):
         formula_cells = [c for row in details for c in row if c.value == '=SUM(1,2)']
         self.assertTrue(formula_cells)
         self.assertTrue(all(c.data_type == 's' for c in formula_cells))
-        self.assertTrue(all(c.hyperlink is None or c.hyperlink.target.startswith('#') for row in details for c in row))
+        self.assertTrue(all(c.hyperlink is None or (c.hyperlink.target is None and c.hyperlink.location) for row in details for c in row))
         wb.close()
 
     def test_representative_and_all_photos_are_embedded_without_altering_originals(self):

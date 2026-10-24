@@ -12,6 +12,7 @@ from urllib.parse import unquote
 from fastapi import HTTPException
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.utils import get_column_letter
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import or_, select
@@ -284,14 +285,16 @@ def build_workbook(rows, params, upload_path, output_path, progress=lambda value
             else:
                 missing += 1
                 photos.row_dimensions[photo_row].height = 34
-            photos.cell(photo_row, 1).hyperlink = f"#'里程明细'!A{index}"
+            back = photos.cell(photo_row, 1)
+            back.hyperlink = Hyperlink(ref=back.coordinate, location=f"'里程明细'!A{index}", display=str(back.value))
+            back.font = Font(color='1769AA', underline='single')
             photo_row += 1
         for col, key, label in [(12, 'out_photo', '出车'), (13, 'in_photo', '收车')]:
             count = len(photo_urls(row[key]))
             cell = detail.cell(index, col)
             literal(cell, f'{count}张 · 查看凭证' if label in targets else f'{count}张（未附图）' if count else '未上传')
             if label in targets:
-                cell.hyperlink = f"#'照片凭证'!A{targets[label]}"
+                cell.hyperlink = Hyperlink(ref=cell.coordinate, location=f"'照片凭证'!A{targets[label]}", display=str(cell.value))
                 cell.font = Font(color='1769AA', underline='single')
         progress(int((index - HEADER_ROW) / max(len(rows), 1) * 85))
     if not rows:
