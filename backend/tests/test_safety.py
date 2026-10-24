@@ -219,10 +219,13 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text[:300] if response.status_code != 200 else '')
 
     def test_finance_cannot_register_trip_but_bound_driver_can(self):
-        payload = {'vehicle_id': self.vehicles['A'], 'trip_date': '2026-10-24T10:00:00', 'out_mileage': 0, 'out_photo': '/uploads/out.jpg'}
+        payload = {'vehicle_id': self.vehicles['A'], 'trip_date': '2026-10-24T10:00:00', 'out_mileage': 0, 'out_photo': '/uploads/out.jpg', 'driver_name': '实际驾驶人张三'}
         self.assertEqual(self.request('POST', '/mileages/out', 'finance', json=payload).status_code, 403)
         response = self.request('POST', '/mileages/out', 'driver', json=payload)
         self.assertEqual(response.status_code, 200, response.text)
+        with database.SessionLocal() as db:
+            self.assertEqual(db.get(MileageRecord, response.json()['id']).driver_name, '实际驾驶人张三')
+            self.assertEqual(db.get(User, self.ids['driver']).real_name, 'driver')
         response = self.request('PUT', f'/mileages/{response.json()["id"]}/close', 'driver', json={'in_mileage': 10, 'in_photo': '/uploads/in.jpg'})
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()['distance'], 10)

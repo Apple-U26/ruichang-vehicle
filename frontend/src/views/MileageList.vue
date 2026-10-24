@@ -218,8 +218,9 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="驾驶人">
-          <el-input v-model="outForm.driver_name" />
+        <el-form-item label="驾驶人" prop="driver_name">
+          <el-input v-model="outForm.driver_name" placeholder="请输入实际驾驶人姓名" maxlength="50" autocomplete="off" />
+          <div class="driver-name-hint">请填写实际驾驶人姓名，用于个人里程汇总；登记成功后本账号在本机自动记住，下次可修改。</div>
         </el-form-item>
         <el-form-item label="出发地">
           <el-input v-model="outForm.departure" />
@@ -400,6 +401,7 @@ import { Delete, Download, Plus, Search } from '@element-plus/icons-vue'
 import request from '../api/request'
 import AttachmentPreview from '../components/AttachmentPreview.vue'
 import PhotoUpload from '../components/PhotoUpload.vue'
+import { getRememberedDriverName, normalizeDriverName, rememberDriverName } from '../utils/driverName'
 
 let userInfo = {}
 try {
@@ -436,7 +438,7 @@ const outForm = reactive({
   vehicle_id: null,
   trip_date: '',
   out_mileage: 0,
-  driver_name: localStorage.getItem('lastDriverName') || userInfo.real_name || '',
+  driver_name: getRememberedDriverName(userInfo),
   departure: '',
   destination: '',
   purpose: '',
@@ -474,6 +476,7 @@ const outRules = {
   vehicle_id: [{ required: true, message: '请选择车辆', trigger: 'change' }],
   trip_date: [{ required: true, message: '请选择出车日期', trigger: 'change' }],
   out_mileage: [{ required: true, message: '请输入出车里程', trigger: 'change' }],
+  driver_name: [{ required: true, whitespace: true, message: '请输入实际驾驶人姓名', trigger: 'blur' }],
 }
 
 const closeRules = {
@@ -520,15 +523,6 @@ watch(
   }
 )
 
-watch(
-  () => outForm.driver_name,
-  (value) => {
-    if (value && String(value).trim()) {
-      localStorage.setItem('lastDriverName', String(value).trim())
-    }
-  }
-)
-
 async function loadData() {
   loading.value = true
   try {
@@ -559,8 +553,7 @@ function openOut() {
     vehicle_id: null,
     trip_date: dateText,
     out_mileage: 0,
-    driver_name:
-      localStorage.getItem('lastDriverName') || userInfo.real_name || '',
+    driver_name: getRememberedDriverName(userInfo),
     departure: '',
     destination: '',
     purpose: '',
@@ -571,7 +564,10 @@ function openOut() {
 }
 
 async function saveOut() {
-  await outFormRef.value.validate()
+  if (saving.value) return
+  const driverName = normalizeDriverName(outForm.driver_name)
+  outForm.driver_name = driverName
+  if (!await outFormRef.value.validate().catch(() => false)) return
   if (!outForm.out_photo) {
     ElMessage.warning('请上传出车照片')
     return
@@ -582,13 +578,14 @@ async function saveOut() {
       vehicle_id: outForm.vehicle_id,
       trip_date: outForm.trip_date,
       out_mileage: outForm.out_mileage,
-      driver_name: outForm.driver_name || null,
+      driver_name: driverName,
       departure: outForm.departure || null,
       destination: outForm.destination || null,
       purpose: outForm.purpose || null,
       out_photo: outForm.out_photo,
       remark: outForm.remark || null,
     })
+    rememberDriverName(userInfo, driverName)
     ElMessage.success('出车登记成功')
     outVisible.value = false
     await Promise.all([loadData(), loadVehicles()])
@@ -866,6 +863,7 @@ onMounted(async () => {
 
 .report-hint { color: #68798c; font-size: 12px; line-height: 1.8; }
 .report-ready { color: #207245; }
+.driver-name-hint { color: #68798c; font-size: 12px; line-height: 1.6; margin-top: 4px; }
 
 .data-table {
   margin-top: 16px;

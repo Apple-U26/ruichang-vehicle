@@ -64,8 +64,9 @@
                 style="width: 100%"
               />
             </el-form-item>
-            <el-form-item label="驾驶人">
-              <el-input v-model="outForm.driver_name" />
+            <el-form-item label="驾驶人" required>
+              <el-input v-model="outForm.driver_name" placeholder="请输入实际驾驶人姓名" maxlength="50" autocomplete="off" />
+              <div class="driver-name-hint">请填写实际驾驶人姓名，用于个人里程汇总；登记成功后本账号在本机自动记住，下次可修改。</div>
             </el-form-item>
             <el-form-item label="出发地">
               <el-input v-model="outForm.departure" />
@@ -954,6 +955,7 @@ import {
 import request from '../api/request'
 import PhotoUpload from '../components/PhotoUpload.vue'
 import AttachmentPreview from '../components/AttachmentPreview.vue'
+import { getRememberedDriverName, normalizeDriverName, rememberDriverName } from '../utils/driverName'
 
 const router = useRouter()
 const activeTab = ref('mileage')
@@ -1045,8 +1047,7 @@ const outForm = reactive({
   vehicle_id: null,
   trip_date: '',
   out_mileage: 0,
-  driver_name:
-    localStorage.getItem('lastDriverName') || user.value.real_name || '',
+  driver_name: getRememberedDriverName(user.value),
   departure: '',
   destination: '',
   purpose: '',
@@ -1299,18 +1300,16 @@ watch(
   () => loadMileageCandidates()
 )
 
-watch(
-  () => outForm.driver_name,
-  (value) => {
-    if (value && String(value).trim()) {
-      localStorage.setItem('lastDriverName', String(value).trim())
-    }
-  }
-)
-
 async function saveOut() {
+  if (saving.value) return
   if (!outForm.vehicle_id || !outForm.trip_date) {
     ElMessage.warning('请选择车辆和日期')
+    return
+  }
+  const driverName = normalizeDriverName(outForm.driver_name)
+  outForm.driver_name = driverName
+  if (!driverName) {
+    ElMessage.warning('请输入实际驾驶人姓名')
     return
   }
   if (!outForm.out_photo) {
@@ -1323,13 +1322,14 @@ async function saveOut() {
       vehicle_id: outForm.vehicle_id,
       trip_date: outForm.trip_date,
       out_mileage: outForm.out_mileage,
-      driver_name: outForm.driver_name || user.value.real_name,
+      driver_name: driverName,
       departure: outForm.departure || null,
       destination: outForm.destination || null,
       purpose: outForm.purpose || null,
       out_photo: outForm.out_photo,
       remark: outForm.remark,
     })
+    rememberDriverName(user.value, driverName)
     ElMessage.success('出车登记成功')
     resetOutForm()
     await loadAll()
@@ -1908,8 +1908,7 @@ function resetOutForm() {
     vehicle_id: null,
     trip_date: nowText(),
     out_mileage: 0,
-    driver_name:
-      localStorage.getItem('lastDriverName') || user.value.real_name || '',
+    driver_name: getRememberedDriverName(user.value),
     departure: '',
     destination: '',
     purpose: '',
@@ -2191,6 +2190,13 @@ onMounted(() => {
 .auto-tip {
   color: #9ca3af;
   font-size: 12px;
+  margin-top: 4px;
+}
+
+.driver-name-hint {
+  color: #68798c;
+  font-size: 12px;
+  line-height: 1.6;
   margin-top: 4px;
 }
 
