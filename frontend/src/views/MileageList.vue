@@ -15,9 +15,28 @@
         placeholder="选择月份"
         clearable
       />
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        value-format="YYYY-MM-DD"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        range-separator="至"
+        style="width: 280px"
+        :shortcuts="dateShortcuts"
+      />
+      <el-select v-model="timeBasis" style="width: 140px" aria-label="时间筛选依据">
+        <el-option label="按出车时间" value="departure" />
+        <el-option label="按收车时间" value="return" />
+      </el-select>
       <el-button type="primary" :icon="Search" @click="loadData">
         查询
       </el-button>
+      <el-button v-if="canExport" :icon="Download" @click="openReport">导出里程报告</el-button>
+      <el-button v-if="report.id && report.status === 'ready'" type="success" :loading="downloading" @click="downloadReport">下载已生成报告</el-button>
+      <el-tag v-else-if="report.id && ['queued', 'running'].includes(report.status)" type="info" @click="reportVisible = true">
+        报告{{ report.status === 'queued' ? '排队中' : `生成中 ${report.progress}%` }}
+      </el-tag>
       <el-button v-if="!isFinance" type="success" :icon="Plus" @click="openOut">
         出车登记
       </el-button>
@@ -118,6 +137,54 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog v-model="reportVisible" title="导出里程报告" width="min(720px, 94vw)">
+      <el-form label-width="100px">
+        <el-form-item label="时间段" required>
+          <el-date-picker v-model="reportForm.range" type="daterange" value-format="YYYY-MM-DD"
+            start-placeholder="开始日期" end-placeholder="结束日期" range-separator="至" :shortcuts="dateShortcuts" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="统计依据">
+          <el-radio-group v-model="reportForm.time_basis">
+            <el-radio value="departure">出车时间</el-radio>
+            <el-radio value="return">收车时间</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="车辆">
+          <el-select v-model="reportForm.vehicle_id" filterable clearable placeholder="全部有权查看的车辆" style="width: 100%">
+            <el-option v-for="vehicle in reportOptions.vehicles" :key="vehicle.id" :label="vehicle.plate_no" :value="vehicle.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="驾驶人">
+          <el-select v-model="reportForm.driver_name" filterable clearable placeholder="全部姓名；按姓名精确汇总" style="width: 100%">
+            <el-option v-for="name in reportOptions.drivers" :key="name" :label="name" :value="name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="查询关键字"><el-input v-model="reportForm.keyword" clearable placeholder="车牌 / 驾驶人 / 事由，可清空" /></el-form-item>
+        <el-form-item label="行程状态">
+          <el-select v-model="reportForm.status" clearable placeholder="全部状态" style="width: 100%">
+            <el-option label="已收车" value="CLOSED" /><el-option label="未收车" value="OUT" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="照片">
+          <el-select v-model="reportForm.photos" style="width: 100%">
+            <el-option label="出、收车各一张代表照片（推荐）" value="representative" />
+            <el-option label="全部照片" value="all" /><el-option label="不附照片" value="none" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <el-alert title="导出包含个人里程汇总、里程明细和照片凭证三个工作表。同名跨车辆合并，异常及未收车不计有效里程；结束日期包含当天全天。"
+        type="info" :closable="false" show-icon />
+      <p class="report-hint">单次最多366天、5000条记录、400张照片。后台生成，可继续使用其他功能，文件保留6小时。</p>
+      <el-progress v-if="['queued', 'running'].includes(report.status)" :percentage="report.progress" :stroke-width="10" />
+      <el-alert v-if="report.status === 'failed'" :title="report.message || '生成失败，请缩小范围后重试'" type="error" :closable="false" />
+      <p v-if="report.status === 'ready'" class="report-ready">{{ report.filename }} 已生成，可下载查看。</p>
+      <template #footer>
+        <el-button @click="reportVisible = false">关闭</el-button>
+        <el-button v-if="report.status === 'ready'" type="success" :loading="downloading" @click="downloadReport">下载报告</el-button>
+        <el-button type="primary" :loading="creatingReport" :disabled="['queued', 'running'].includes(report.status)" @click="generateReport">生成报告</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="outVisible" title="出车登记" width="640px">
       <el-form ref="outFormRef" :model="outForm" :rules="outRules" label-width="100px">
@@ -323,9 +390,9 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Plus, Search } from '@element-plus/icons-vue'
+import { Delete, Download, Plus, Search } from '@element-plus/icons-vue'
 import request from '../api/request'
 import AttachmentPreview from '../components/AttachmentPreview.vue'
 import PhotoUpload from '../components/PhotoUpload.vue'
@@ -340,11 +407,15 @@ try {
 }
 const isAdmin = userInfo.role === 'ADMIN'
 const isFinance = userInfo.role === 'FINANCE'
+const canExport = ['ADMIN', 'FINANCE', 'PROJECT_MANAGER', 'VEHICLE_MANAGER'].includes(userInfo.role)
 
 const rows = ref([])
 const selectedRows = ref([])
 const vehicles = ref([])
 const month = ref('')
+const dateRange = ref(null)
+const timeBasis = ref('departure')
+const appliedFilters = ref({})
 const keyword = ref('')
 const loading = ref(false)
 const saving = ref(false)
@@ -458,14 +529,17 @@ async function loadData() {
   loading.value = true
   try {
     selectedRows.value = []
-    const res = await request.get('/mileages', {
-      params: {
+    const params = {
         month: month.value || undefined,
         keyword: keyword.value || undefined,
-      },
-    })
+        date_from: dateRange.value?.[0] || undefined,
+        date_to: dateRange.value?.[1] || undefined,
+        time_basis: timeBasis.value,
+    }
+    const res = await request.get('/mileages', { params })
     const data = unwrap(res)
     rows.value = Array.isArray(data) ? data : []
+    appliedFilters.value = { ...params }
   } catch (error) {
     rows.value = []
   } finally {
@@ -653,9 +727,112 @@ async function batchDelete() {
   }
 }
 
+const reportVisible = ref(false)
+const creatingReport = ref(false)
+const downloading = ref(false)
+const reportOptions = reactive({ vehicles: [], drivers: [] })
+const reportForm = reactive({ range: [], time_basis: 'departure', vehicle_id: null, driver_name: '', keyword: '', status: null, photos: 'representative' })
+const report = reactive({ id: '', status: '', progress: 0, filename: '', message: '' })
+const reportStorageKey = `mileageReportJob:${userInfo.id || userInfo.username || 'current'}`
+let reportTimer = null
+let disposed = false
+let pollFailures = 0
+
+function dateText(value) {
+  const pad = (part) => String(part).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+}
+
+function monthDates(value) {
+  const [year, selectedMonth] = value.split('-').map(Number)
+  return [dateText(new Date(year, selectedMonth - 1, 1)), dateText(new Date(year, selectedMonth, 0))]
+}
+
+const dateShortcuts = [
+  { text: '本月', value: () => { const now = new Date(); return [new Date(now.getFullYear(), now.getMonth(), 1), now] } },
+  { text: '上月', value: () => { const now = new Date(); return [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)] } },
+]
+watch(month, (value) => { if (value) dateRange.value = null })
+watch(dateRange, (value) => { if (value?.length) month.value = '' })
+
+async function openReport() {
+  if (!['queued', 'running'].includes(report.status)) {
+    const filter = appliedFilters.value
+    const now = new Date()
+    Object.assign(reportForm, {
+      range: filter.date_from ? [filter.date_from, filter.date_to] : filter.month ? monthDates(filter.month) : [dateText(new Date(now.getFullYear(), now.getMonth(), 1)), dateText(now)],
+      time_basis: filter.time_basis || 'departure', vehicle_id: null, driver_name: '', keyword: filter.keyword || '', status: null, photos: 'representative',
+    })
+  }
+  reportVisible.value = true
+  try { Object.assign(reportOptions, unwrap(await request.get('/mileage-reports/options'))) }
+  catch { ElMessage.error('无法加载导出选项，请稍后重试') }
+}
+
+async function pollReport() {
+  if (!report.id || disposed) return
+  clearTimeout(reportTimer)
+  try {
+    Object.assign(report, unwrap(await request.get(`/mileage-reports/${report.id}`)))
+    pollFailures = 0
+    if (['queued', 'running'].includes(report.status)) reportTimer = setTimeout(pollReport, 1500)
+    else if (report.status === 'ready') ElMessage.success('里程报告已生成，可下载查看')
+    else if (report.status === 'failed') localStorage.removeItem(reportStorageKey)
+  } catch (error) {
+    if ([401, 403, 404, 410].includes(error.response?.status)) {
+      localStorage.removeItem(reportStorageKey)
+      report.id = ''
+      report.status = ''
+    } else if (++pollFailures <= 5) reportTimer = setTimeout(pollReport, 3000)
+    else {
+      report.status = 'failed'
+      report.message = '网络暂时不可用，重新进入里程管理后可继续查看任务'
+    }
+  }
+}
+
+async function generateReport() {
+  if (!reportForm.range?.[0] || !reportForm.range?.[1]) return ElMessage.warning('请选择开始日期和结束日期')
+  creatingReport.value = true
+  try {
+    const payload = unwrap(await request.post('/mileage-reports', {
+      date_from: reportForm.range[0], date_to: reportForm.range[1], time_basis: reportForm.time_basis,
+      vehicle_id: reportForm.vehicle_id || null, driver_name: reportForm.driver_name || '', keyword: reportForm.keyword || '',
+      status: reportForm.status || null, photos: reportForm.photos,
+    }))
+    Object.assign(report, { id: payload.id, status: payload.status, progress: 0, message: '', filename: '' })
+    localStorage.setItem(reportStorageKey, payload.id)
+    pollFailures = 0
+    await pollReport()
+  } catch (error) { ElMessage.error(error.response?.data?.detail || '未能开始生成，请稍后重试') }
+  finally { creatingReport.value = false }
+}
+
+async function downloadReport() {
+  downloading.value = true
+  try {
+    const response = await request.get(`/mileage-reports/${report.id}/download`, { responseType: 'blob', timeout: 60000 })
+    const url = URL.createObjectURL(response.data)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = report.filename || '里程报告.xlsx'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (error) {
+    let message = '下载失败，请重新生成或稍后重试'
+    try { if (error.response?.data instanceof Blob) message = JSON.parse(await error.response.data.text()).detail || message } catch {}
+    ElMessage.error(message)
+  } finally { downloading.value = false }
+}
+
+onBeforeUnmount(() => { disposed = true; clearTimeout(reportTimer) })
 onMounted(async () => {
   await loadVehicles()
   await loadData()
+  const previousJob = canExport && localStorage.getItem(reportStorageKey)
+  if (previousJob) { report.id = previousJob; await pollReport() }
 })
 </script>
 
@@ -664,7 +841,11 @@ onMounted(async () => {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
+
+.report-hint { color: #68798c; font-size: 12px; line-height: 1.8; }
+.report-ready { color: #207245; }
 
 .data-table {
   margin-top: 16px;

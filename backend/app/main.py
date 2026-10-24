@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from urllib.parse import quote
 
 from app.routers import auth
+from app.routers import mileage_reports
+from app.mileage_report import apply_period
 from app.access import (
     apply_vehicle_scope,
     ensure_project_access,
@@ -115,6 +117,7 @@ app = FastAPI(
     version="1.0.0"
 )
 app.include_router(auth.router)
+app.include_router(mileage_reports.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1006,6 +1009,9 @@ def mileage_list(
     month: str | None = None,
     keyword: str | None = None,
     exclude_used: bool = False,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    time_basis: str = 'departure',
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
@@ -1019,7 +1025,10 @@ def mileage_list(
 
     if month:
         stmt = stmt.where(
-            func.date_format(MileageRecord.trip_date, "%Y-%m") == month
+            func.date_format(
+                MileageRecord.close_time if time_basis == 'return' else MileageRecord.trip_date,
+                "%Y-%m",
+            ) == month
         )
 
     if keyword:
@@ -1042,6 +1051,7 @@ def mileage_list(
             )
         )
 
+    stmt = apply_period(stmt, date_from, date_to, time_basis)
     stmt = apply_vehicle_scope(user, stmt, join_project=True)
 
     rows = db.execute(

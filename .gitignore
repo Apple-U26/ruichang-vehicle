@@ -5,6 +5,7 @@ logs/
 tmp/
 backups/
 backend/uploads/
+backend/.mileage-reports/
 frontend/dist/
 frontend-incomplete-*/
 
