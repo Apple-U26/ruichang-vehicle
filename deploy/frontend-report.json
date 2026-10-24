@@ -1,0 +1,7 @@
+{
+  "source_commit": "76bde1690541becbbaa870a399a3125ec2952986",
+  "file": "frontend-report.tar.gz",
+  "sha256": "060486bb609ebee87de33ffb6054daed91f37bd75379d685562e3b464161a491",
+  "bytes": 437372,
+  "build": "Node.js 24.22.1; npm ci with existing package-lock.json; npm run build"
+}
