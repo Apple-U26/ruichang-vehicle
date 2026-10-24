@@ -33,7 +33,7 @@
         查询
       </el-button>
       <el-button v-if="canExport" :icon="Download" @click="openReport">导出里程报告</el-button>
-      <el-button v-if="report.id && report.status === 'ready'" type="success" :loading="downloading" @click="downloadReport">下载已生成报告</el-button>
+      <el-button v-if="report.id && report.status === 'ready'" type="success" :loading="downloading" @click="downloadReport">{{ downloading ? `正在下载 ${downloadProgress}%` : '下载已生成报告' }}</el-button>
       <el-tag v-else-if="report.id && ['queued', 'running'].includes(report.status)" type="info" @click="reportVisible = true">
         报告{{ report.status === 'queued' ? '排队中' : `生成中 ${report.progress}%` }}
       </el-tag>
@@ -178,11 +178,15 @@
       <p class="report-hint">单次最多366天、5000条记录、400张照片。后台生成，可继续使用其他功能，文件保留6小时。</p>
       <el-progress v-if="['queued', 'running'].includes(report.status)" :percentage="report.progress" :stroke-width="10" />
       <el-alert v-if="report.status === 'failed'" :title="report.message || '生成失败，请缩小范围后重试'" type="error" :closable="false" />
-      <p v-if="report.status === 'ready'" class="report-ready">{{ report.filename }} 已生成，可下载查看。</p>
+      <p v-if="report.status === 'ready'" class="report-ready">{{ report.filename }} 已生成{{ report.bytes ? `（${(report.bytes / 1024 / 1024).toFixed(1)} MB）` : '' }}，可下载查看。</p>
+      <template v-if="downloading">
+        <el-progress :percentage="downloadProgress" :stroke-width="10" />
+        <p class="report-hint">正在下载，含照片的报告可能需要几分钟，请等待完成。下载中断可直接重试，无需重新生成。</p>
+      </template>
       <template #footer>
         <el-button @click="reportVisible = false">关闭</el-button>
-        <el-button v-if="report.status === 'ready'" type="success" :loading="downloading" @click="downloadReport">下载报告</el-button>
-        <el-button type="primary" :loading="creatingReport" :disabled="['queued', 'running'].includes(report.status)" @click="generateReport">生成报告</el-button>
+        <el-button v-if="report.status === 'ready'" type="success" :loading="downloading" @click="downloadReport">{{ downloading ? `正在下载 ${downloadProgress}%` : '下载报告' }}</el-button>
+        <el-button type="primary" :loading="creatingReport" :disabled="downloading || ['queued', 'running'].includes(report.status)" @click="generateReport">生成报告</el-button>
       </template>
     </el-dialog>
 
@@ -730,6 +734,7 @@ async function batchDelete() {
 const reportVisible = ref(false)
 const creatingReport = ref(false)
 const downloading = ref(false)
+const downloadProgress = ref(0)
 const reportOptions = reactive({ vehicles: [], drivers: [] })
 const reportForm = reactive({ range: [], time_basis: 'departure', vehicle_id: null, driver_name: '', keyword: '', status: null, photos: 'representative' })
 const report = reactive({ id: '', status: '', progress: 0, filename: '', message: '' })
@@ -809,19 +814,34 @@ async function generateReport() {
 }
 
 async function downloadReport() {
+  if (downloading.value) return
   downloading.value = true
+  downloadProgress.value = 0
+  const filename = report.filename || '里程报告.xlsx'
+  const expectedBytes = report.bytes
   try {
-    const response = await request.get(`/mileage-reports/${report.id}/download`, { responseType: 'blob', timeout: 60000 })
+    const response = await request.get(`/mileage-reports/${report.id}/download`, {
+      responseType: 'blob',
+      timeout: 10 * 60 * 1000,
+      onDownloadProgress(event) {
+        const total = event.total || expectedBytes
+        if (total) downloadProgress.value = Math.min(99, Math.floor(event.loaded * 100 / total))
+      },
+    })
+    downloadProgress.value = 100
     const url = URL.createObjectURL(response.data)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = report.filename || '里程报告.xlsx'
+    anchor.download = filename
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+    ElMessage.success('已交给浏览器保存，请查看下载列表')
   } catch (error) {
-    let message = '下载失败，请重新生成或稍后重试'
+    let message = ['ECONNABORTED', 'ETIMEDOUT'].includes(error.code)
+      ? '下载超时，报告已保留，请在网络稳定后直接重试下载'
+      : '下载中断，报告已保留，请稍后直接重试下载'
     try { if (error.response?.data instanceof Blob) message = JSON.parse(await error.response.data.text()).detail || message } catch {}
     ElMessage.error(message)
   } finally { downloading.value = false }
