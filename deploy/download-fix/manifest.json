@@ -1,0 +1,14 @@
+{
+  "source_commit": "e83db7fbdd038659dc088fd47fab9548ded08c8d",
+  "sha256": "b2744beaefacf5e94cf25f93de219e8eaffa814fd3fbb79c16a8a6879a8a2c7e",
+  "parts": 13,
+  "bytes": 437778,
+  "assets": {
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "7ca2d67c9c3aebf50cdc8709ee8aacf8cdb8cc7ea6325ea94939caef5da1c53d",
+    "index.html": "1d52c0793c23597c9f129e5326858aad475b35b5bd8ca3762f75842ad05ba70b",
+    "police-badge.png": "6189a29f86e1756d1970f4446b9f836642c283c373d312dbddeb42411f1608e6",
+    "assets/index-B87oUbBM.css": "0dde1ef54ae14c794542ca3751167506f9d9d2a1d3231f98cc04a3de88a4c3e8",
+    "assets/index-DlGcKpqi.js": "8b414bccf1ca2b218757271a76f752f7e3a151d23bc8f359051bba6ff814d3b7"
+  }
+}
