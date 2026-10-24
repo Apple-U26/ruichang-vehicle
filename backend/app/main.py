@@ -19,6 +19,14 @@ from sqlalchemy.orm import Session
 from urllib.parse import quote
 
 from app.routers import auth
+from app.access import (
+    apply_vehicle_scope,
+    ensure_project_access,
+    ensure_vehicle_access,
+    project_owned_by_user,
+)
+from app.numbering import assign_reimbursement_no, provisional_reimbursement_no
+from app.export_scope import export_scope
 from app.config import settings
 from app.database import (
     Base,
@@ -235,37 +243,13 @@ def names_similar(name_a: str | None, name_b: str | None) -> bool:
         return False
     a = name_a.strip()
     b = name_b.strip()
-    if a == b:
-        return True
-    if len(a) != len(b):
-        return False
-    return sum(1 for x, y in zip(a, b) if x != y) <= 1
+    return a == b
 
 
-def project_owned_by_user(user: User, project: Project | None) -> bool:
-    if project is None:
-        return False
-    if project.manager_user_id and project.manager_user_id == user.id:
-        return True
-    return names_similar(project.manager_name, user.real_name)
 
 
-def sync_project_owner_ids(db: Session) -> None:
-    users = db.scalars(select(User)).all()
-    projects = db.scalars(
-        select(Project).where(Project.manager_user_id.is_(None))
-    ).all()
-    for project in projects:
-        if not project.manager_name:
-            continue
-        for user in users:
-            if names_similar(project.manager_name, user.real_name):
-                project.manager_user_id = user.id
-                break
-    db.commit()
 
 
-sync_project_owner_ids(SessionLocal())
 
 
 def ensure_vehicle_manageable(
@@ -282,25 +266,6 @@ def ensure_vehicle_manageable(
         )
 
 
-def apply_vehicle_scope(
-    user: User,
-    stmt,
-    join_project: bool = False,
-):
-    if user.role == "DRIVER":
-        if user.vehicle_id:
-            return stmt.where(Vehicle.id == user.vehicle_id)
-        return stmt.where(Vehicle.id == -1)
-
-    if user.role == "VEHICLE_MANAGER":
-        return stmt.where(Vehicle.vehicle_manager == user.real_name)
-
-    if user.role == "PROJECT_MANAGER":
-        if join_project:
-            stmt = stmt.join(Project, Project.id == Vehicle.project_id)
-        return stmt.where(Project.manager_name == user.real_name)
-
-    return stmt
 
 
 def ensure_reimbursement_source_available(
@@ -312,7 +277,7 @@ def ensure_reimbursement_source_available(
         select(ReimbursementDetail.id).where(
             ReimbursementDetail.source_type == source_type,
             ReimbursementDetail.source_id == source_id,
-        )
+        ).with_for_update()
     )
     if used:
         label = {
@@ -328,7 +293,11 @@ def ensure_reimbursement_source_available(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "name": settings.app_name}
+    return {
+        "status": "ok",
+        "name": settings.app_name,
+        "release": os.getenv("APP_RELEASE", "legacy"),
+    }
 
 
 
@@ -482,9 +451,6 @@ async def excel_import(
     user: User = Depends(
         require_roles(
             "ADMIN",
-            "VEHICLE_MANAGER",
-            "PROJECT_MANAGER",
-            "FINANCE",
         )
     ),
 ):
@@ -524,7 +490,9 @@ def excel_export(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_query),
 ):
-    output = export_workbook(db)
+    ensure_not_driver(user)
+    with export_scope(db, user):
+        output = export_workbook(db)
     filename = f"车辆里程维保报销台账-{date.today():%Y%m%d}.xlsx"
 
     return StreamingResponse(
@@ -541,7 +509,9 @@ def excel_export_vehicles(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_query),
 ):
-    output = export_vehicle_workbook(db)
+    ensure_not_driver(user)
+    with export_scope(db, user):
+        output = export_vehicle_workbook(db)
     filename = f"车辆台账-{date.today():%Y%m%d}.xlsx"
     return StreamingResponse(
         output,
@@ -557,7 +527,9 @@ def excel_export_welders(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_query),
 ):
-    output = export_welder_workbook(db)
+    ensure_not_driver(user)
+    with export_scope(db, user):
+        output = export_welder_workbook(db)
     filename = f"焊机台账-{date.today():%Y%m%d}.xlsx"
     return StreamingResponse(
         output,
@@ -690,6 +662,8 @@ def project_update(
     if not row:
         raise HTTPException(status_code=404, detail="项目不存在")
 
+    ensure_project_access(user, row)
+
     duplicate = db.scalar(
         select(Project).where(
             Project.name == data.name,
@@ -820,8 +794,7 @@ def vehicle_detail(
     if not row:
         raise HTTPException(status_code=404, detail="车辆不存在")
 
-    if user.role == "DRIVER" and user.vehicle_id and row.id != user.vehicle_id:
-        raise HTTPException(status_code=403, detail="无权查看该车辆")
+    ensure_vehicle_access(user, row)
 
     return vehicle_to_dict(row)
 
@@ -839,6 +812,7 @@ def vehicle_create(
         )
     )
 ):
+    ensure_project_access(user, db.get(Project, data.project_id) if data.project_id else None)
     plate_no = data.plate_no.strip().upper()
 
     exists = db.scalar(
@@ -915,7 +889,8 @@ def vehicle_update(
     if duplicate:
         raise HTTPException(status_code=400, detail="车牌号已经存在")
 
-    ensure_vehicle_manageable(user, row.vehicle_manager)
+    ensure_vehicle_access(user, row)
+    ensure_project_access(user, db.get(Project, data.project_id) if data.project_id else None)
 
     row.plate_no = data.plate_no.strip().upper()
     row.project_id = data.project_id
@@ -986,68 +961,13 @@ def delete_vehicle_cascade(db: Session, vehicle_id: int) -> bool:
         )
     )
 
+    for account in row.accounts:
+        account.vehicle_id = None
     db.delete(row)
+    db.flush()
     return True
 
 
-def reset_vehicle_sequence(db: Session) -> None:
-    old_ids = db.scalars(
-        select(Vehicle.id).order_by(Vehicle.id.asc())
-    ).all()
-    if not old_ids:
-        db.execute(text("ALTER TABLE vehicle_info AUTO_INCREMENT = 1"))
-        return
-
-    mapping = {
-        old_id: new_id
-        for new_id, old_id in enumerate(old_ids, start=1)
-    }
-    db.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-    try:
-        for old_id in mapping:
-            db.execute(
-                text(
-                    "UPDATE vehicle_info SET id = id + 1000000 "
-                    "WHERE id = :old_id"
-                ),
-                {"old_id": old_id},
-            )
-        for old_id, new_id in mapping.items():
-            db.execute(
-                text(
-                    "UPDATE vehicle_info SET id = :new_id, "
-                    "vehicle_code = :code "
-                    "WHERE id = :old_id + 1000000"
-                ),
-                {
-                    "new_id": new_id,
-                    "code": f"CL-{new_id:06d}",
-                    "old_id": old_id,
-                },
-            )
-            for table in (
-                "vehicle_mileage",
-                "maintenance_record",
-                "violation_record",
-                "fuel_record",
-                "reimbursement",
-                "sys_user",
-            ):
-                db.execute(
-                    text(
-                        f"UPDATE {table} SET vehicle_id = :new_id "
-                        "WHERE vehicle_id = :old_id"
-                    ),
-                    {"new_id": new_id, "old_id": old_id},
-                )
-    finally:
-        db.execute(text("SET FOREIGN_KEY_CHECKS=1"))
-    db.execute(
-        text(
-            f"ALTER TABLE vehicle_info AUTO_INCREMENT = "
-            f"{len(mapping) + 1}"
-        )
-    )
 
 
 @app.delete("/api/vehicles/{vehicle_id}")
@@ -1058,7 +978,6 @@ def vehicle_delete(
 ):
     if not delete_vehicle_cascade(db, vehicle_id):
         raise HTTPException(status_code=404, detail="车辆不存在")
-    reset_vehicle_sequence(db)
     db.commit()
     return {"message": "车辆及其业务记录已删除"}
 
@@ -1073,7 +992,6 @@ def vehicle_batch_delete(
         delete_vehicle_cascade(db, vehicle_id)
         for vehicle_id in data.ids
     )
-    reset_vehicle_sequence(db)
     db.commit()
     return {"message": f"已删除 {deleted} 辆车", "deleted": deleted}
 
@@ -1161,14 +1079,15 @@ def mileage_list(
 def mileage_out(
     data: MileageOutIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+    user: User = Depends(require_roles("ADMIN", "VEHICLE_MANAGER", "PROJECT_MANAGER", "DRIVER"))
 ):
     ensure_driver_vehicle(user, data.vehicle_id)
 
-    vehicle = db.get(Vehicle, data.vehicle_id)
+    vehicle = db.scalar(
+        select(Vehicle).where(Vehicle.id == data.vehicle_id).with_for_update()
+    )
 
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     if vehicle.status != "ACTIVE":
         raise HTTPException(status_code=400, detail="车辆当前不可出车")
@@ -1272,14 +1191,17 @@ def mileage_close(
     record_id: int,
     data: MileageCloseIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+    user: User = Depends(require_roles("ADMIN", "VEHICLE_MANAGER", "PROJECT_MANAGER", "DRIVER"))
 ):
-    row = db.get(MileageRecord, record_id)
+    row = db.scalar(
+        select(MileageRecord).where(MileageRecord.id == record_id).with_for_update()
+    )
 
     if not row:
         raise HTTPException(status_code=404, detail="里程记录不存在")
 
     ensure_driver_vehicle(user, row.vehicle_id)
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
 
     if row.status == "CLOSED":
         raise HTTPException(status_code=400, detail="该行程已经收车")
@@ -1449,8 +1371,7 @@ def maintenance_create(
 
     vehicle = db.get(Vehicle, data.vehicle_id)
 
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     row = MaintenanceRecord(**data.model_dump())
     db.add(row)
@@ -1485,9 +1406,9 @@ def maintenance_update(
     if not row:
         raise HTTPException(status_code=404, detail="维保记录不存在")
 
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
     vehicle = db.get(Vehicle, data.vehicle_id)
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     row.vehicle_id = data.vehicle_id
     row.maintenance_date = data.maintenance_date
@@ -1616,8 +1537,7 @@ def violation_create(
     ensure_driver_vehicle(user, data.vehicle_id)
 
     vehicle = db.get(Vehicle, data.vehicle_id)
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     row = ViolationRecord(**data.model_dump())
     db.add(row)
@@ -1648,9 +1568,9 @@ def violation_update(
     if not row:
         raise HTTPException(status_code=404, detail="违章记录不存在")
 
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
     vehicle = db.get(Vehicle, data.vehicle_id)
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     row.vehicle_id = data.vehicle_id
     row.violation_date = data.violation_date
@@ -1795,8 +1715,7 @@ def fuel_create(
     ensure_driver_vehicle(user, data.vehicle_id)
 
     vehicle = db.get(Vehicle, data.vehicle_id)
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     total = data.total_amount
     if total <= 0:
@@ -1834,9 +1753,9 @@ def fuel_update(
     if not row:
         raise HTTPException(status_code=404, detail="油费记录不存在")
 
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
     vehicle = db.get(Vehicle, data.vehicle_id)
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     total = data.total_amount
     if total <= 0:
@@ -2048,56 +1967,6 @@ def welder_update(
     return welder_to_dict(row)
 
 
-def renumber_welders(db: Session) -> None:
-    old_ids = db.scalars(
-        select(Welder.id).order_by(Welder.id.asc())
-    ).all()
-    if not old_ids:
-        db.execute(text("ALTER TABLE welder_archive AUTO_INCREMENT = 1"))
-        return
-
-    mapping = {
-        old_id: new_id
-        for new_id, old_id in enumerate(old_ids, start=1)
-    }
-    db.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-    try:
-        for old_id in mapping:
-            db.execute(
-                text(
-                    "UPDATE welder_archive SET id = id + 1000000 "
-                    "WHERE id = :old_id"
-                ),
-                {"old_id": old_id},
-            )
-        for old_id, new_id in mapping.items():
-            db.execute(
-                text(
-                    "UPDATE welder_archive SET id = :new_id, "
-                    "welder_code = :code "
-                    "WHERE id = :old_id + 1000000"
-                ),
-                {
-                    "new_id": new_id,
-                    "code": f"HJ-{new_id:06d}",
-                    "old_id": old_id,
-                },
-            )
-            db.execute(
-                text(
-                    "UPDATE welder_inspection SET welder_id = :new_id "
-                    "WHERE welder_id = :old_id"
-                ),
-                {"new_id": new_id, "old_id": old_id},
-            )
-    finally:
-        db.execute(text("SET FOREIGN_KEY_CHECKS=1"))
-    db.execute(
-        text(
-            f"ALTER TABLE welder_archive AUTO_INCREMENT = "
-            f"{len(mapping) + 1}"
-        )
-    )
 
 
 @app.delete("/api/welders/{welder_id}")
@@ -2110,7 +1979,6 @@ def welder_delete(
     if not row:
         raise HTTPException(status_code=404, detail="焊机不存在")
     db.delete(row)
-    renumber_welders(db)
     db.commit()
     return {"message": "焊机删除成功"}
 
@@ -2127,7 +1995,6 @@ def welder_batch_delete(
         if row:
             db.delete(row)
             deleted += 1
-    renumber_welders(db)
     db.commit()
     return {"message": f"已删除 {deleted} 台焊机", "deleted": deleted}
 
@@ -2419,7 +2286,7 @@ def reimbursement_detail(
     if not row:
         raise HTTPException(status_code=404, detail="报销单不存在")
 
-    ensure_driver_vehicle(user, row.vehicle_id)
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
 
     if (
         user.role == "DRIVER"
@@ -2492,21 +2359,33 @@ def reimbursement_create(
         )
     ),
 ):
-    vehicle = db.get(Vehicle, data.vehicle_id)
+    vehicle = db.scalar(
+        select(Vehicle).where(Vehicle.id == data.vehicle_id).with_for_update()
+    )
 
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="车辆不存在")
+    ensure_vehicle_access(user, vehicle)
 
     ensure_driver_vehicle(user, data.vehicle_id)
+    if data.project_id is not None and data.project_id != vehicle.project_id:
+        raise HTTPException(status_code=400, detail="报销项目必须与车辆所属项目一致")
 
     if not data.details:
         raise HTTPException(status_code=400, detail="至少填写一条费用")
 
     prepared_details = []
+    seen_sources = set()
     for detail in data.details:
+        if bool(detail.source_type) != bool(detail.source_id):
+            raise HTTPException(status_code=400, detail="费用来源类型和记录必须同时填写")
         if detail.source_type and detail.source_id:
+            source_key = (detail.source_type, detail.source_id)
+            if source_key in seen_sources:
+                raise HTTPException(status_code=400, detail="同一张报销单不能重复关联同一笔费用")
+            seen_sources.add(source_key)
             if detail.source_type == "FUEL":
-                source = db.get(FuelRecord, detail.source_id)
+                source = db.scalar(
+                    select(FuelRecord).where(FuelRecord.id == detail.source_id).with_for_update()
+                )
                 if (
                     source is None
                     or source.vehicle_id != data.vehicle_id
@@ -2546,7 +2425,9 @@ def reimbursement_create(
                     }
                 )
             elif detail.source_type == "MILEAGE":
-                source = db.get(MileageRecord, detail.source_id)
+                source = db.scalar(
+                    select(MileageRecord).where(MileageRecord.id == detail.source_id).with_for_update()
+                )
                 if (
                     source is None
                     or source.vehicle_id != data.vehicle_id
@@ -2600,7 +2481,9 @@ def reimbursement_create(
                     }
                 )
             else:
-                source = db.get(MaintenanceRecord, detail.source_id)
+                source = db.scalar(
+                    select(MaintenanceRecord).where(MaintenanceRecord.id == detail.source_id).with_for_update()
+                )
                 if (
                     source is None
                     or source.vehicle_id != data.vehicle_id
@@ -2656,23 +2539,11 @@ def reimbursement_create(
         Decimal("0"),
     )
 
-    sequence = db.scalar(
-        select(func.count(Reimbursement.id)).where(
-            Reimbursement.reimbursement_month ==
-            data.reimbursement_month
-        )
-    ) or 0
-
-    reimbursement_no = (
-        f"BX-{data.reimbursement_month.replace('-', '')}-"
-        f"{sequence + 1:04d}"
-    )
-
     row = Reimbursement(
-        reimbursement_no=reimbursement_no,
+        reimbursement_no=provisional_reimbursement_no(),
         reimbursement_month=data.reimbursement_month,
         vehicle_id=data.vehicle_id,
-        project_id=data.project_id,
+        project_id=vehicle.project_id,
         applicant_id=user.id,
         applicant_name=user.real_name,
         total_amount=total,
@@ -2681,7 +2552,7 @@ def reimbursement_create(
     )
 
     db.add(row)
-    db.flush()
+    assign_reimbursement_no(db, row)
 
     for detail in prepared_details:
         db.add(
@@ -2745,10 +2616,13 @@ def reimbursement_batch_approve(
     approved = 0
     skipped = 0
     for record_id in data.ids:
-        row = db.get(Reimbursement, record_id)
+        row = db.scalar(
+            select(Reimbursement).where(Reimbursement.id == record_id).with_for_update()
+        )
         if not row:
             skipped += 1
             continue
+        ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
 
         if (
             row.status == "SUBMITTED"
@@ -2846,10 +2720,13 @@ def project_approve(
         require_roles("ADMIN", "PROJECT_MANAGER")
     )
 ):
-    row = db.get(Reimbursement, record_id)
+    row = db.scalar(
+        select(Reimbursement).where(Reimbursement.id == record_id).with_for_update()
+    )
 
     if not row:
         raise HTTPException(status_code=404, detail="报销单不存在")
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
 
     if row.status != "SUBMITTED":
         raise HTTPException(status_code=400, detail="报销状态不正确")
@@ -2878,10 +2755,13 @@ def finance_approve(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("ADMIN", "FINANCE"))
 ):
-    row = db.get(Reimbursement, record_id)
+    row = db.scalar(
+        select(Reimbursement).where(Reimbursement.id == record_id).with_for_update()
+    )
 
     if not row:
         raise HTTPException(status_code=404, detail="报销单不存在")
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
 
     if row.status != "PROJECT_APPROVED":
         raise HTTPException(status_code=400, detail="报销状态不正确")
@@ -2917,10 +2797,13 @@ def reimbursement_reject(
         )
     )
 ):
-    row = db.get(Reimbursement, record_id)
+    row = db.scalar(
+        select(Reimbursement).where(Reimbursement.id == record_id).with_for_update()
+    )
 
     if not row:
         raise HTTPException(status_code=404, detail="报销单不存在")
+    ensure_vehicle_access(user, db.get(Vehicle, row.vehicle_id))
 
     if row.status not in {"SUBMITTED", "PROJECT_APPROVED"}:
         raise HTTPException(status_code=400, detail="当前状态不能退回")

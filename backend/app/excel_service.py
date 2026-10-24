@@ -15,6 +15,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.numbering import assign_reimbursement_no, provisional_reimbursement_no
+
 from app.models import (
     FuelRecord,
     MileageRecord,
@@ -1284,9 +1286,7 @@ def _import_reimbursements(
             status = "DRAFT"
 
         reimbursement = Reimbursement(
-            reimbursement_no=_next_reimbursement_no(
-                db, reimbursement_month
-            ),
+            reimbursement_no=provisional_reimbursement_no(),
             reimbursement_month=reimbursement_month,
             vehicle_id=vehicle.id,
             project_id=vehicle.project_id,
@@ -1297,7 +1297,7 @@ def _import_reimbursements(
             remark=str(_cell(row, headers, "remark") or "").strip() or None,
         )
         db.add(reimbursement)
-        db.flush()
+        assign_reimbursement_no(db, reimbursement)
 
         for detail in details:
             db.add(

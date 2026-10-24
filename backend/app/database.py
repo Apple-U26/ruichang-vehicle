@@ -56,7 +56,10 @@ def ensure_column_type(
             column["name"]: column["type"]
             for column in inspector.get_columns(table_name)
         }
-        if column_name in columns:
+        if (
+            column_name in columns
+            and str(columns[column_name]).upper() != column_ddl.split()[0].upper()
+        ):
             with engine.begin() as connection:
                 connection.execute(
                     text(
